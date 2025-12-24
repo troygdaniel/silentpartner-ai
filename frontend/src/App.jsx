@@ -335,7 +335,7 @@ function App() {
 
   const styles = {
     sidebar: { width: '260px', background: '#1a1d21', color: '#fff', display: 'flex', flexDirection: 'column', height: '100vh' },
-    sidebarHeader: { padding: '15px', borderBottom: '1px solid #333', fontWeight: 'bold', fontSize: '18px' },
+    sidebarHeader: { padding: '15px', borderBottom: '1px solid #333', fontWeight: 'bold', fontSize: '18px', cursor: 'pointer' },
     sidebarSection: { padding: '10px 15px 5px', color: '#999', fontSize: '12px', textTransform: 'uppercase', display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
     channel: { padding: '6px 15px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' },
     channelActive: { background: '#1164A3' },
@@ -356,7 +356,7 @@ function App() {
     <div style={{ display: 'flex', fontFamily: 'system-ui, sans-serif', height: '100vh' }}>
       {/* Sidebar */}
       <div style={styles.sidebar}>
-        <div style={styles.sidebarHeader}>SilentPartner</div>
+        <div style={styles.sidebarHeader} onClick={() => { setActiveChannel(null); setShowSettings(false); setMessages([]) }}>SilentPartner</div>
 
         {/* Projects */}
         <div style={styles.sidebarSection}>
