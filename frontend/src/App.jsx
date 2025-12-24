@@ -8,20 +8,19 @@ const API_HEADERS = () => ({
 function App() {
   const [authStatus, setAuthStatus] = useState(null)
   const [user, setUser] = useState(null)
-  const [employees, setEmployees] = useState([])
   const [loading, setLoading] = useState(true)
-  const [view, setView] = useState('employees') // 'employees', 'settings', 'memories', 'chat'
-  const [showAddForm, setShowAddForm] = useState(false)
-  const [editingEmployee, setEditingEmployee] = useState(null)
-  const [formData, setFormData] = useState({ name: '', role: '', instructions: '', model: 'gpt-4' })
 
-  // Settings state
+  // Data
+  const [projects, setProjects] = useState([])
+  const [employees, setEmployees] = useState([])
+  const [memories, setMemories] = useState([])
   const [apiKeys, setApiKeys] = useState({ has_openai_key: false, has_anthropic_key: false })
-  const [keyInputs, setKeyInputs] = useState({ openai: '', anthropic: '' })
-  const [savingKeys, setSavingKeys] = useState(false)
+
+  // Navigation
+  const [activeChannel, setActiveChannel] = useState(null) // { type: 'project' | 'dm', id, name }
+  const [showSettings, setShowSettings] = useState(false)
 
   // Chat state
-  const [selectedEmployee, setSelectedEmployee] = useState(null)
   const [messages, setMessages] = useState([])
   const [chatInput, setChatInput] = useState('')
   const [isStreaming, setIsStreaming] = useState(false)
@@ -31,46 +30,54 @@ function App() {
   const [uploadedFiles, setUploadedFiles] = useState([])
   const [uploading, setUploading] = useState(false)
 
-  // Memory state
-  const [memories, setMemories] = useState([])
-  const [memoryForm, setMemoryForm] = useState({ content: '', employee_id: '' })
-  const [showMemoryForm, setShowMemoryForm] = useState(false)
-  const [editingMemory, setEditingMemory] = useState(null)
+  // Modal state
+  const [showProjectModal, setShowProjectModal] = useState(false)
+  const [showEmployeeModal, setShowEmployeeModal] = useState(false)
+  const [editingProject, setEditingProject] = useState(null)
+  const [editingEmployee, setEditingEmployee] = useState(null)
+  const [projectForm, setProjectForm] = useState({ name: '', description: '' })
+  const [employeeForm, setEmployeeForm] = useState({ name: '', role: '', instructions: '', model: 'gpt-4' })
+  const [keyInputs, setKeyInputs] = useState({ openai: '', anthropic: '' })
+  const [savingKeys, setSavingKeys] = useState(false)
+
+  // Fetch functions
+  const fetchProjects = async () => {
+    try {
+      const res = await fetch('/api/projects', { headers: API_HEADERS() })
+      if (res.ok) setProjects(await res.json())
+    } catch (err) { console.error('Failed to fetch projects:', err) }
+  }
 
   const fetchEmployees = async () => {
     try {
       const res = await fetch('/api/employees', { headers: API_HEADERS() })
-      if (res.ok) {
-        const data = await res.json()
-        setEmployees(data)
-      }
-    } catch (err) {
-      console.error('Failed to fetch employees:', err)
-    }
+      if (res.ok) setEmployees(await res.json())
+    } catch (err) { console.error('Failed to fetch employees:', err) }
   }
 
   const fetchApiKeys = async () => {
     try {
       const res = await fetch('/api/settings/api-keys', { headers: API_HEADERS() })
-      if (res.ok) {
-        const data = await res.json()
-        setApiKeys(data)
-      }
-    } catch (err) {
-      console.error('Failed to fetch API keys status:', err)
-    }
+      if (res.ok) setApiKeys(await res.json())
+    } catch (err) { console.error('Failed to fetch API keys:', err) }
   }
 
   const fetchMemories = async () => {
     try {
       const res = await fetch('/api/memories/all', { headers: API_HEADERS() })
-      if (res.ok) {
-        const data = await res.json()
-        setMemories(data)
-      }
-    } catch (err) {
-      console.error('Failed to fetch memories:', err)
-    }
+      if (res.ok) setMemories(await res.json())
+    } catch (err) { console.error('Failed to fetch memories:', err) }
+  }
+
+  const fetchMessages = async (channel) => {
+    if (!channel) return
+    try {
+      const endpoint = channel.type === 'project'
+        ? `/api/messages/project/${channel.id}`
+        : `/api/messages/dm/${channel.id}`
+      const res = await fetch(endpoint, { headers: API_HEADERS() })
+      if (res.ok) setMessages(await res.json())
+    } catch (err) { console.error('Failed to fetch messages:', err) }
   }
 
   useEffect(() => {
@@ -82,70 +89,83 @@ function App() {
 
     if (token) {
       fetch('/api/auth/me', { headers: { 'Authorization': `Bearer ${token}` } })
-        .then(res => {
-          if (res.ok) return res.json()
-          localStorage.removeItem('token')
-          return null
-        })
+        .then(res => { if (res.ok) return res.json(); localStorage.removeItem('token'); return null })
         .then(data => {
           setUser(data)
-          if (data) {
-            fetchEmployees()
-            fetchApiKeys()
-            fetchMemories()
-          }
+          if (data) { fetchProjects(); fetchEmployees(); fetchApiKeys(); fetchMemories() }
           setLoading(false)
         })
-        .catch(() => {
-          localStorage.removeItem('token')
-          setLoading(false)
-        })
+        .catch(() => { localStorage.removeItem('token'); setLoading(false) })
     } else {
       setLoading(false)
     }
   }, [])
 
+  useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages])
+
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages])
+    if (activeChannel) {
+      fetchMessages(activeChannel)
+      setUploadedFiles([])
+      setChatError(null)
+      setShowSettings(false)
+    }
+  }, [activeChannel])
 
   const handleLogin = () => { window.location.href = '/api/auth/google' }
-  const handleLogout = () => { localStorage.removeItem('token'); setUser(null); setEmployees([]); setMemories([]) }
+  const handleLogout = () => { localStorage.removeItem('token'); setUser(null); setProjects([]); setEmployees([]) }
 
-  const handleAddEmployee = async (e) => {
+  // Project CRUD
+  const handleSaveProject = async (e) => {
     e.preventDefault()
-    const res = await fetch('/api/employees', { method: 'POST', headers: API_HEADERS(), body: JSON.stringify(formData) })
-    if (res.ok) { setShowAddForm(false); setFormData({ name: '', role: '', instructions: '', model: 'gpt-4' }); fetchEmployees() }
+    const method = editingProject ? 'PUT' : 'POST'
+    const url = editingProject ? `/api/projects/${editingProject.id}` : '/api/projects'
+    const res = await fetch(url, { method, headers: API_HEADERS(), body: JSON.stringify(projectForm) })
+    if (res.ok) {
+      setShowProjectModal(false)
+      setEditingProject(null)
+      setProjectForm({ name: '', description: '' })
+      fetchProjects()
+    }
   }
 
-  const handleUpdateEmployee = async (e) => {
+  const handleDeleteProject = async (id) => {
+    if (!confirm('Delete this project and all its messages?')) return
+    await fetch(`/api/projects/${id}`, { method: 'DELETE', headers: API_HEADERS() })
+    if (activeChannel?.type === 'project' && activeChannel?.id === id) setActiveChannel(null)
+    fetchProjects()
+  }
+
+  // Employee CRUD
+  const handleSaveEmployee = async (e) => {
     e.preventDefault()
-    const res = await fetch(`/api/employees/${editingEmployee.id}`, { method: 'PUT', headers: API_HEADERS(), body: JSON.stringify(formData) })
-    if (res.ok) { setEditingEmployee(null); setFormData({ name: '', role: '', instructions: '', model: 'gpt-4' }); fetchEmployees() }
+    const method = editingEmployee ? 'PUT' : 'POST'
+    const url = editingEmployee ? `/api/employees/${editingEmployee.id}` : '/api/employees'
+    const res = await fetch(url, { method, headers: API_HEADERS(), body: JSON.stringify(employeeForm) })
+    if (res.ok) {
+      setShowEmployeeModal(false)
+      setEditingEmployee(null)
+      setEmployeeForm({ name: '', role: '', instructions: '', model: 'gpt-4' })
+      fetchEmployees()
+    }
   }
 
   const handleDeleteEmployee = async (id) => {
     if (!confirm('Delete this employee?')) return
-    const res = await fetch(`/api/employees/${id}`, { method: 'DELETE', headers: API_HEADERS() })
-    if (res.ok) fetchEmployees()
+    await fetch(`/api/employees/${id}`, { method: 'DELETE', headers: API_HEADERS() })
+    if (activeChannel?.type === 'dm' && activeChannel?.id === id) setActiveChannel(null)
+    fetchEmployees()
   }
 
-  const startEdit = (emp) => {
-    setEditingEmployee(emp)
-    setFormData({ name: emp.name, role: emp.role || '', instructions: emp.instructions || '', model: emp.model })
-    setShowAddForm(false)
-  }
-
+  // API Keys
   const saveApiKeys = async () => {
     setSavingKeys(true)
     const body = {}
     if (keyInputs.openai) body.openai_api_key = keyInputs.openai
     if (keyInputs.anthropic) body.anthropic_api_key = keyInputs.anthropic
-
     const res = await fetch('/api/settings/api-keys', { method: 'PUT', headers: API_HEADERS(), body: JSON.stringify(body) })
     if (res.ok) {
-      const data = await res.json()
-      setApiKeys({ has_openai_key: data.has_openai_key, has_anthropic_key: data.has_anthropic_key })
+      setApiKeys(await res.json())
       setKeyInputs({ openai: '', anthropic: '' })
     }
     setSavingKeys(false)
@@ -154,74 +174,18 @@ function App() {
   const removeApiKey = async (provider) => {
     const body = provider === 'openai' ? { openai_api_key: '' } : { anthropic_api_key: '' }
     const res = await fetch('/api/settings/api-keys', { method: 'PUT', headers: API_HEADERS(), body: JSON.stringify(body) })
-    if (res.ok) {
-      const data = await res.json()
-      setApiKeys({ has_openai_key: data.has_openai_key, has_anthropic_key: data.has_anthropic_key })
-    }
+    if (res.ok) setApiKeys(await res.json())
   }
 
-  const handleAddMemory = async (e) => {
-    e.preventDefault()
-    const body = { content: memoryForm.content }
-    if (memoryForm.employee_id) body.employee_id = memoryForm.employee_id
-    const res = await fetch('/api/memories', { method: 'POST', headers: API_HEADERS(), body: JSON.stringify(body) })
-    if (res.ok) {
-      setShowMemoryForm(false)
-      setMemoryForm({ content: '', employee_id: '' })
-      fetchMemories()
-    }
-  }
-
-  const handleUpdateMemory = async (e) => {
-    e.preventDefault()
-    const res = await fetch(`/api/memories/${editingMemory.id}`, { method: 'PUT', headers: API_HEADERS(), body: JSON.stringify({ content: memoryForm.content }) })
-    if (res.ok) {
-      setEditingMemory(null)
-      setMemoryForm({ content: '', employee_id: '' })
-      fetchMemories()
-    }
-  }
-
-  const handleDeleteMemory = async (id) => {
-    if (!confirm('Delete this memory?')) return
-    const res = await fetch(`/api/memories/${id}`, { method: 'DELETE', headers: API_HEADERS() })
-    if (res.ok) fetchMemories()
-  }
-
-  const startEditMemory = (mem) => {
-    setEditingMemory(mem)
-    setMemoryForm({ content: mem.content, employee_id: mem.employee_id || '' })
-    setShowMemoryForm(false)
-  }
-
-  const startChat = async (emp) => {
-    setSelectedEmployee(emp)
-    setMessages([])
-    setChatError(null)
-    setUploadedFiles([])
-    setView('chat')
-    // Fetch any existing files for this employee
-    try {
-      const res = await fetch(`/api/files/${emp.id}`, { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } })
-      if (res.ok) {
-        const files = await res.json()
-        setUploadedFiles(files)
-      }
-    } catch (err) {
-      console.error('Failed to fetch files:', err)
-    }
-  }
-
+  // File upload for DMs
   const handleFileUpload = async (e) => {
     const file = e.target.files[0]
-    if (!file || !selectedEmployee) return
-
+    if (!file || !activeChannel || activeChannel.type !== 'dm') return
     setUploading(true)
     const formData = new FormData()
     formData.append('file', file)
-
     try {
-      const res = await fetch(`/api/files/upload/${selectedEmployee.id}`, {
+      const res = await fetch(`/api/files/upload/${activeChannel.id}`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
         body: formData
@@ -233,30 +197,25 @@ function App() {
         const err = await res.json()
         setChatError(err.detail || 'Upload failed')
       }
-    } catch (err) {
-      setChatError('Upload error')
-    }
+    } catch (err) { setChatError('Upload error') }
     setUploading(false)
     if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
   const handleDeleteFile = async (fileId) => {
-    if (!selectedEmployee) return
+    if (!activeChannel || activeChannel.type !== 'dm') return
     try {
-      const res = await fetch(`/api/files/${selectedEmployee.id}/${fileId}`, {
+      const res = await fetch(`/api/files/${activeChannel.id}/${fileId}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
       })
-      if (res.ok) {
-        setUploadedFiles(uploadedFiles.filter(f => f.id !== fileId))
-      }
-    } catch (err) {
-      console.error('Failed to delete file:', err)
-    }
+      if (res.ok) setUploadedFiles(uploadedFiles.filter(f => f.id !== fileId))
+    } catch (err) { console.error('Failed to delete file:', err) }
   }
 
+  // Chat
   const sendMessage = async () => {
-    if (!chatInput.trim() || isStreaming) return
+    if (!chatInput.trim() || isStreaming || !activeChannel) return
 
     const userMessage = { role: 'user', content: chatInput.trim() }
     const newMessages = [...messages, userMessage]
@@ -265,11 +224,47 @@ function App() {
     setIsStreaming(true)
     setChatError(null)
 
+    // Save user message
+    await fetch('/api/messages', {
+      method: 'POST',
+      headers: API_HEADERS(),
+      body: JSON.stringify({
+        content: userMessage.content,
+        role: 'user',
+        project_id: activeChannel.type === 'project' ? activeChannel.id : null,
+        employee_id: activeChannel.type === 'dm' ? activeChannel.id : null
+      })
+    })
+
+    // For project channels, parse @mention to get employee
+    let employeeId = activeChannel.type === 'dm' ? activeChannel.id : null
+    if (activeChannel.type === 'project') {
+      // Look for @mention in the message
+      const mentionMatch = chatInput.match(/@(\w+)/)
+      if (mentionMatch) {
+        const mentionedName = mentionMatch[1].toLowerCase()
+        const mentionedEmployee = employees.find(e => e.name.toLowerCase().includes(mentionedName))
+        if (mentionedEmployee) employeeId = mentionedEmployee.id
+      }
+      // If no mention, use first employee as default
+      if (!employeeId && employees.length > 0) employeeId = employees[0].id
+    }
+
+    if (!employeeId) {
+      setChatError('No employee available to respond')
+      setIsStreaming(false)
+      return
+    }
+
     try {
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: API_HEADERS(),
-        body: JSON.stringify({ employee_id: selectedEmployee.id, messages: newMessages })
+        body: JSON.stringify({
+          employee_id: employeeId,
+          messages: newMessages.map(m => ({ role: m.role, content: m.content })),
+          project_id: activeChannel.type === 'project' ? activeChannel.id : null
+        })
       })
 
       if (!res.ok) {
@@ -282,333 +277,328 @@ function App() {
       const reader = res.body.getReader()
       const decoder = new TextDecoder()
       let assistantContent = ''
-
-      setMessages([...newMessages, { role: 'assistant', content: '' }])
+      setMessages([...newMessages, { role: 'assistant', content: '', employee_id: employeeId }])
 
       while (true) {
         const { done, value } = await reader.read()
         if (done) break
-
         const chunk = decoder.decode(value)
         const lines = chunk.split('\n')
-
         for (const line of lines) {
           if (line.startsWith('data: ')) {
             const data = line.slice(6)
             if (data === '[DONE]') continue
             try {
               const parsed = JSON.parse(data)
-              if (parsed.error) {
-                setChatError(parsed.error)
-              } else if (parsed.content) {
+              if (parsed.error) setChatError(parsed.error)
+              else if (parsed.content) {
                 assistantContent += parsed.content
-                setMessages([...newMessages, { role: 'assistant', content: assistantContent }])
+                setMessages([...newMessages, { role: 'assistant', content: assistantContent, employee_id: employeeId }])
               }
             } catch {}
           }
         }
       }
-    } catch (err) {
-      setChatError('Connection error')
-    }
+
+      // Save assistant message
+      await fetch('/api/messages', {
+        method: 'POST',
+        headers: API_HEADERS(),
+        body: JSON.stringify({
+          content: assistantContent,
+          role: 'assistant',
+          project_id: activeChannel.type === 'project' ? activeChannel.id : null,
+          employee_id: employeeId
+        })
+      })
+    } catch (err) { setChatError('Connection error') }
     setIsStreaming(false)
   }
 
   if (loading) {
-    return <div style={{ fontFamily: 'system-ui, sans-serif', display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', backgroundColor: '#f5f5f5' }}><p>Loading...</p></div>
+    return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', background: '#1a1d21' }}><p style={{ color: '#fff' }}>Loading...</p></div>
   }
 
-  const styles = {
-    input: { width: '100%', padding: '8px', marginBottom: '10px', border: '1px solid #ddd', borderRadius: '4px', boxSizing: 'border-box' },
-    textarea: { width: '100%', padding: '8px', marginBottom: '10px', border: '1px solid #ddd', borderRadius: '4px', minHeight: '80px', boxSizing: 'border-box' },
-    btn: { padding: '10px 20px', fontSize: '14px', border: 'none', borderRadius: '4px', cursor: 'pointer', marginRight: '10px' },
-    card: { background: 'white', padding: '15px', borderRadius: '8px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', marginBottom: '15px' }
-  }
-
-  // Chat View
-  if (view === 'chat' && selectedEmployee) {
+  if (!user) {
     return (
-      <div style={{ fontFamily: 'system-ui, sans-serif', height: '100vh', display: 'flex', flexDirection: 'column', backgroundColor: '#f5f5f5' }}>
-        <div style={{ padding: '15px', background: 'white', borderBottom: '1px solid #ddd', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div>
-            <button onClick={() => setView('employees')} style={{ ...styles.btn, backgroundColor: '#6c757d', color: 'white', marginRight: '15px' }}>Back</button>
-            <strong>{selectedEmployee.name}</strong>
-            <span style={{ color: '#666', marginLeft: '10px', fontSize: '14px' }}>{selectedEmployee.role}</span>
-          </div>
-        </div>
-
-        <div style={{ flex: 1, overflow: 'auto', padding: '20px' }}>
-          {messages.length === 0 && (
-            <div style={{ textAlign: 'center', color: '#999', marginTop: '50px' }}>
-              <p>Start a conversation with {selectedEmployee.name}</p>
-            </div>
-          )}
-          {messages.map((msg, i) => (
-            <div key={i} style={{ marginBottom: '15px', display: 'flex', justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start' }}>
-              <div style={{
-                maxWidth: '70%', padding: '12px 16px', borderRadius: '12px',
-                backgroundColor: msg.role === 'user' ? '#007bff' : 'white',
-                color: msg.role === 'user' ? 'white' : '#333',
-                boxShadow: '0 1px 2px rgba(0,0,0,0.1)'
-              }}>
-                <pre style={{ margin: 0, whiteSpace: 'pre-wrap', fontFamily: 'inherit' }}>{msg.content}</pre>
-              </div>
-            </div>
-          ))}
-          {chatError && (
-            <div style={{ padding: '15px', background: '#ffe6e6', borderRadius: '8px', color: '#cc0000', marginBottom: '15px' }}>
-              {chatError}
-            </div>
-          )}
-          <div ref={messagesEndRef} />
-        </div>
-
-        <div style={{ padding: '15px', background: 'white', borderTop: '1px solid #ddd' }}>
-          {uploadedFiles.length > 0 && (
-            <div style={{ maxWidth: '800px', margin: '0 auto 10px', display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-              {uploadedFiles.map(f => (
-                <div key={f.id} style={{ display: 'flex', alignItems: 'center', background: '#e3f2fd', padding: '4px 10px', borderRadius: '15px', fontSize: '12px' }}>
-                  <span style={{ marginRight: '8px' }}>{f.filename}</span>
-                  <button onClick={() => handleDeleteFile(f.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#666', padding: '0', fontSize: '14px' }}>×</button>
-                </div>
-              ))}
-            </div>
-          )}
-          <div style={{ display: 'flex', gap: '10px', maxWidth: '800px', margin: '0 auto' }}>
-            <input
-              type="file"
-              ref={fileInputRef}
-              onChange={handleFileUpload}
-              style={{ display: 'none' }}
-              accept=".txt,.md,.json,.csv,.py,.js,.ts,.jsx,.tsx,.html,.css,.xml,.yaml,.yml,.log,.sql"
-            />
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              disabled={isStreaming || uploading || uploadedFiles.length >= 5}
-              style={{ ...styles.btn, backgroundColor: '#6c757d', color: 'white', padding: '12px', opacity: (isStreaming || uploading || uploadedFiles.length >= 5) ? 0.6 : 1 }}
-              title="Upload file (max 100KB, text files only)"
-            >
-              {uploading ? '...' : '+'}
-            </button>
-            <input
-              type="text"
-              value={chatInput}
-              onChange={(e) => setChatInput(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && sendMessage()}
-              placeholder="Type a message..."
-              disabled={isStreaming}
-              style={{ flex: 1, padding: '12px', border: '1px solid #ddd', borderRadius: '8px', fontSize: '16px' }}
-            />
-            <button onClick={sendMessage} disabled={isStreaming || !chatInput.trim()} style={{ ...styles.btn, backgroundColor: '#007bff', color: 'white', opacity: isStreaming ? 0.6 : 1 }}>
-              {isStreaming ? 'Sending...' : 'Send'}
-            </button>
-          </div>
-          <p style={{ textAlign: 'center', color: '#999', fontSize: '11px', margin: '8px 0 0' }}>
-            {uploadedFiles.length}/5 files • Text files only (max 100KB each)
-          </p>
-        </div>
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100vh', background: '#1a1d21', color: '#fff', fontFamily: 'system-ui, sans-serif' }}>
+        <h1 style={{ marginBottom: '10px' }}>SilentPartner</h1>
+        <p style={{ color: '#999', marginBottom: '30px' }}>Your AI consulting team, configured by you.</p>
+        {authStatus?.oauth_configured ? (
+          <button onClick={handleLogin} style={{ padding: '12px 24px', fontSize: '16px', backgroundColor: '#4285f4', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Sign in with Google</button>
+        ) : (
+          <p style={{ color: '#999' }}>Google OAuth not configured yet</p>
+        )}
       </div>
     )
   }
 
-  return (
-    <div style={{ fontFamily: 'system-ui, sans-serif', minHeight: '100vh', backgroundColor: '#f5f5f5', padding: '20px' }}>
-      <div style={{ maxWidth: '800px', margin: '0 auto' }}>
-        <div style={{ textAlign: 'center', marginBottom: '30px' }}>
-          <h1 style={{ color: '#333', marginBottom: '0.5rem' }}>SilentPartner</h1>
-          <p style={{ color: '#666' }}>Your AI consulting team, configured by you.</p>
-        </div>
+  const styles = {
+    sidebar: { width: '260px', background: '#1a1d21', color: '#fff', display: 'flex', flexDirection: 'column', height: '100vh' },
+    sidebarHeader: { padding: '15px', borderBottom: '1px solid #333', fontWeight: 'bold', fontSize: '18px' },
+    sidebarSection: { padding: '10px 15px 5px', color: '#999', fontSize: '12px', textTransform: 'uppercase', display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
+    channel: { padding: '6px 15px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' },
+    channelActive: { background: '#1164A3' },
+    addBtn: { background: 'none', border: 'none', color: '#999', cursor: 'pointer', fontSize: '16px' },
+    main: { flex: 1, display: 'flex', flexDirection: 'column', background: '#fff', height: '100vh' },
+    header: { padding: '15px 20px', borderBottom: '1px solid #ddd', display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
+    messages: { flex: 1, overflow: 'auto', padding: '20px' },
+    input: { width: '100%', padding: '8px', marginBottom: '10px', border: '1px solid #ddd', borderRadius: '4px', boxSizing: 'border-box' },
+    textarea: { width: '100%', padding: '8px', marginBottom: '10px', border: '1px solid #ddd', borderRadius: '4px', minHeight: '80px', boxSizing: 'border-box' },
+    btn: { padding: '8px 16px', fontSize: '14px', border: 'none', borderRadius: '4px', cursor: 'pointer', marginRight: '8px' },
+    modal: { position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 },
+    modalContent: { background: '#fff', padding: '25px', borderRadius: '8px', width: '400px', maxWidth: '90%' }
+  }
 
-        {user ? (
-          <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', ...styles.card }}>
-              <div>
-                <strong>{user.name}</strong>
-                <span style={{ color: '#666', marginLeft: '10px', fontSize: '14px' }}>{user.email}</span>
-              </div>
-              <div>
-                <button onClick={() => setView('settings')} style={{ ...styles.btn, backgroundColor: view === 'settings' ? '#007bff' : '#6c757d', color: 'white' }}>Settings</button>
-                <button onClick={() => setView('memories')} style={{ ...styles.btn, backgroundColor: view === 'memories' ? '#007bff' : '#6c757d', color: 'white' }}>Memories</button>
-                <button onClick={() => setView('employees')} style={{ ...styles.btn, backgroundColor: view === 'employees' ? '#007bff' : '#6c757d', color: 'white' }}>Employees</button>
-                <button onClick={handleLogout} style={{ ...styles.btn, backgroundColor: '#dc3545', color: 'white', marginRight: 0 }}>Sign out</button>
-              </div>
+  const getEmployeeName = (id) => employees.find(e => e.id === id)?.name || 'Unknown'
+
+  return (
+    <div style={{ display: 'flex', fontFamily: 'system-ui, sans-serif', height: '100vh' }}>
+      {/* Sidebar */}
+      <div style={styles.sidebar}>
+        <div style={styles.sidebarHeader}>SilentPartner</div>
+
+        {/* Projects */}
+        <div style={styles.sidebarSection}>
+          <span>Projects</span>
+          <button onClick={() => { setShowProjectModal(true); setEditingProject(null); setProjectForm({ name: '', description: '' }) }} style={styles.addBtn}>+</button>
+        </div>
+        {projects.map(p => (
+          <div
+            key={p.id}
+            onClick={() => setActiveChannel({ type: 'project', id: p.id, name: p.name })}
+            onContextMenu={(e) => { e.preventDefault(); if (confirm('Delete project?')) handleDeleteProject(p.id) }}
+            style={{ ...styles.channel, ...(activeChannel?.type === 'project' && activeChannel?.id === p.id ? styles.channelActive : {}) }}
+          >
+            <span style={{ color: '#999' }}>#</span> {p.name}
+          </div>
+        ))}
+
+        {/* Direct Messages */}
+        <div style={{ ...styles.sidebarSection, marginTop: '20px' }}>
+          <span>Direct Messages</span>
+          <button onClick={() => { setShowEmployeeModal(true); setEditingEmployee(null); setEmployeeForm({ name: '', role: '', instructions: '', model: 'gpt-4' }) }} style={styles.addBtn}>+</button>
+        </div>
+        {employees.map(e => (
+          <div
+            key={e.id}
+            onClick={() => setActiveChannel({ type: 'dm', id: e.id, name: e.name })}
+            onContextMenu={(ev) => { ev.preventDefault(); if (!e.is_default && confirm('Delete employee?')) handleDeleteEmployee(e.id) }}
+            style={{ ...styles.channel, ...(activeChannel?.type === 'dm' && activeChannel?.id === e.id ? styles.channelActive : {}) }}
+          >
+            <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#2bac76', display: 'inline-block' }}></span>
+            {e.name}
+            {e.role && <span style={{ color: '#999', fontSize: '11px', marginLeft: 'auto' }}>{e.role}</span>}
+          </div>
+        ))}
+
+        {/* Footer */}
+        <div style={{ marginTop: 'auto', padding: '15px', borderTop: '1px solid #333' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
+            <span style={{ width: '32px', height: '32px', borderRadius: '4px', background: '#4285f4', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: '14px' }}>
+              {user.name?.[0] || 'U'}
+            </span>
+            <div style={{ flex: 1, overflow: 'hidden' }}>
+              <div style={{ fontSize: '14px', fontWeight: 'bold', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{user.name}</div>
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button onClick={() => { setShowSettings(true); setActiveChannel(null) }} style={{ ...styles.btn, flex: 1, background: '#333', color: '#fff', marginRight: 0, fontSize: '12px' }}>Settings</button>
+            <button onClick={handleLogout} style={{ ...styles.btn, flex: 1, background: '#dc3545', color: '#fff', marginRight: 0, fontSize: '12px' }}>Logout</button>
+          </div>
+        </div>
+      </div>
+
+      {/* Main Content */}
+      <div style={styles.main}>
+        {showSettings ? (
+          <div style={{ padding: '30px', maxWidth: '600px' }}>
+            <h2>Settings</h2>
+
+            <h3>API Keys</h3>
+            <p style={{ color: '#666', fontSize: '14px' }}>Add your API keys to use AI employees.</p>
+
+            <div style={{ marginTop: '20px' }}>
+              <h4>OpenAI API Key {apiKeys.has_openai_key && <span style={{ color: 'green' }}>Configured</span>}</h4>
+              {apiKeys.has_openai_key ? (
+                <button onClick={() => removeApiKey('openai')} style={{ ...styles.btn, background: '#dc3545', color: '#fff' }}>Remove</button>
+              ) : (
+                <input type="password" placeholder="sk-..." value={keyInputs.openai} onChange={(e) => setKeyInputs({ ...keyInputs, openai: e.target.value })} style={styles.input} />
+              )}
             </div>
 
-            {view === 'settings' && (
-              <div style={styles.card}>
-                <h2 style={{ marginTop: 0 }}>API Keys</h2>
-                <p style={{ color: '#666', fontSize: '14px' }}>Add your own API keys to use AI employees. Keys are encrypted and stored securely.</p>
+            <div style={{ marginTop: '20px' }}>
+              <h4>Anthropic API Key {apiKeys.has_anthropic_key && <span style={{ color: 'green' }}>Configured</span>}</h4>
+              {apiKeys.has_anthropic_key ? (
+                <button onClick={() => removeApiKey('anthropic')} style={{ ...styles.btn, background: '#dc3545', color: '#fff' }}>Remove</button>
+              ) : (
+                <input type="password" placeholder="sk-ant-..." value={keyInputs.anthropic} onChange={(e) => setKeyInputs({ ...keyInputs, anthropic: e.target.value })} style={styles.input} />
+              )}
+            </div>
 
-                <div style={{ marginTop: '20px' }}>
-                  <h4 style={{ marginBottom: '10px' }}>OpenAI API Key {apiKeys.has_openai_key && <span style={{ color: 'green' }}>✓ Configured</span>}</h4>
-                  {apiKeys.has_openai_key ? (
-                    <button onClick={() => removeApiKey('openai')} style={{ ...styles.btn, backgroundColor: '#dc3545', color: 'white' }}>Remove Key</button>
-                  ) : (
-                    <input type="password" placeholder="sk-..." value={keyInputs.openai} onChange={(e) => setKeyInputs({ ...keyInputs, openai: e.target.value })} style={styles.input} />
-                  )}
-                </div>
-
-                <div style={{ marginTop: '20px' }}>
-                  <h4 style={{ marginBottom: '10px' }}>Anthropic API Key {apiKeys.has_anthropic_key && <span style={{ color: 'green' }}>✓ Configured</span>}</h4>
-                  {apiKeys.has_anthropic_key ? (
-                    <button onClick={() => removeApiKey('anthropic')} style={{ ...styles.btn, backgroundColor: '#dc3545', color: 'white' }}>Remove Key</button>
-                  ) : (
-                    <input type="password" placeholder="sk-ant-..." value={keyInputs.anthropic} onChange={(e) => setKeyInputs({ ...keyInputs, anthropic: e.target.value })} style={styles.input} />
-                  )}
-                </div>
-
-                {(keyInputs.openai || keyInputs.anthropic) && (
-                  <button onClick={saveApiKeys} disabled={savingKeys} style={{ ...styles.btn, backgroundColor: '#28a745', color: 'white', marginTop: '15px' }}>
-                    {savingKeys ? 'Saving...' : 'Save Keys'}
-                  </button>
-                )}
-              </div>
+            {(keyInputs.openai || keyInputs.anthropic) && (
+              <button onClick={saveApiKeys} disabled={savingKeys} style={{ ...styles.btn, background: '#28a745', color: '#fff', marginTop: '15px' }}>
+                {savingKeys ? 'Saving...' : 'Save Keys'}
+              </button>
             )}
 
-            {view === 'memories' && (
-              <>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
-                  <h2 style={{ margin: 0 }}>Memories</h2>
-                  {!showMemoryForm && !editingMemory && (
-                    <button onClick={() => setShowMemoryForm(true)} style={{ ...styles.btn, backgroundColor: '#28a745', color: 'white' }}>+ Add Memory</button>
-                  )}
+            <h3 style={{ marginTop: '40px' }}>Memories</h3>
+            <p style={{ color: '#666', fontSize: '14px' }}>Facts your AI employees will remember.</p>
+            {memories.length === 0 ? (
+              <p style={{ color: '#999' }}>No memories yet.</p>
+            ) : (
+              memories.map(m => (
+                <div key={m.id} style={{ padding: '10px', background: '#f5f5f5', borderRadius: '4px', marginTop: '10px' }}>
+                  <p style={{ margin: 0 }}>{m.content}</p>
+                  <span style={{ fontSize: '12px', color: '#999' }}>
+                    {m.project_name ? `Project: ${m.project_name}` : m.employee_name ? `Employee: ${m.employee_name}` : 'Shared'}
+                  </span>
                 </div>
-
-                <p style={{ color: '#666', fontSize: '14px', marginBottom: '20px' }}>
-                  Memories are facts your AI employees will remember. Shared memories apply to all employees. Role-specific memories only apply to one employee.
-                </p>
-
-                {(showMemoryForm || editingMemory) && (
-                  <div style={styles.card}>
-                    <h3 style={{ marginTop: 0 }}>{editingMemory ? 'Edit Memory' : 'Add New Memory'}</h3>
-                    <form onSubmit={editingMemory ? handleUpdateMemory : handleAddMemory}>
-                      <textarea
-                        placeholder="What should your employees remember? (e.g., 'Our company name is Acme Corp', 'We use React and Python')"
-                        value={memoryForm.content}
-                        onChange={(e) => setMemoryForm({ ...memoryForm, content: e.target.value })}
-                        style={styles.textarea}
-                        required
-                      />
-                      {!editingMemory && (
-                        <select
-                          value={memoryForm.employee_id}
-                          onChange={(e) => setMemoryForm({ ...memoryForm, employee_id: e.target.value })}
-                          style={styles.input}
-                        >
-                          <option value="">Shared (all employees)</option>
-                          {employees.map(emp => (
-                            <option key={emp.id} value={emp.id}>{emp.name} only</option>
-                          ))}
-                        </select>
-                      )}
-                      <button type="submit" style={{ ...styles.btn, backgroundColor: '#007bff', color: 'white' }}>{editingMemory ? 'Save' : 'Create'}</button>
-                      <button type="button" onClick={() => { setShowMemoryForm(false); setEditingMemory(null); setMemoryForm({ content: '', employee_id: '' }) }} style={{ ...styles.btn, backgroundColor: '#6c757d', color: 'white' }}>Cancel</button>
-                    </form>
-                  </div>
-                )}
-
-                <div>
-                  {memories.length === 0 && !showMemoryForm && (
-                    <div style={{ ...styles.card, textAlign: 'center', color: '#999' }}>
-                      <p>No memories yet. Add some facts for your AI employees to remember.</p>
-                    </div>
-                  )}
-                  {memories.map(mem => (
-                    <div key={mem.id} style={styles.card}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                        <div style={{ flex: 1 }}>
-                          <p style={{ margin: '0 0 10px 0' }}>{mem.content}</p>
-                          <span style={{
-                            fontSize: '12px',
-                            padding: '2px 8px',
-                            borderRadius: '10px',
-                            backgroundColor: mem.employee_id ? '#e3f2fd' : '#e8f5e9',
-                            color: mem.employee_id ? '#1976d2' : '#388e3c'
-                          }}>
-                            {mem.employee_id ? `${mem.employee_name} only` : 'Shared'}
-                          </span>
-                        </div>
-                        <div>
-                          <button onClick={() => startEditMemory(mem)} style={{ ...styles.btn, backgroundColor: '#ffc107', color: '#333', padding: '5px 10px', fontSize: '12px' }}>Edit</button>
-                          <button onClick={() => handleDeleteMemory(mem.id)} style={{ ...styles.btn, backgroundColor: '#dc3545', color: 'white', padding: '5px 10px', fontSize: '12px', marginRight: 0 }}>Delete</button>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </>
-            )}
-
-            {view === 'employees' && (
-              <>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
-                  <h2 style={{ margin: 0 }}>Your AI Employees</h2>
-                  {!showAddForm && !editingEmployee && (
-                    <button onClick={() => setShowAddForm(true)} style={{ ...styles.btn, backgroundColor: '#28a745', color: 'white' }}>+ Add Employee</button>
-                  )}
-                </div>
-
-                {(showAddForm || editingEmployee) && (
-                  <div style={styles.card}>
-                    <h3 style={{ marginTop: 0 }}>{editingEmployee ? 'Edit Employee' : 'Add New Employee'}</h3>
-                    <form onSubmit={editingEmployee ? handleUpdateEmployee : handleAddEmployee}>
-                      <input type="text" placeholder="Name" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} style={styles.input} required disabled={editingEmployee?.is_default} />
-                      <input type="text" placeholder="Role (e.g., Developer, QA)" value={formData.role} onChange={(e) => setFormData({ ...formData, role: e.target.value })} style={styles.input} />
-                      <textarea placeholder="Instructions..." value={formData.instructions} onChange={(e) => setFormData({ ...formData, instructions: e.target.value })} style={styles.textarea} />
-                      <select value={formData.model} onChange={(e) => setFormData({ ...formData, model: e.target.value })} style={styles.input}>
-                        <option value="gpt-4">GPT-4</option>
-                        <option value="gpt-4-turbo">GPT-4 Turbo</option>
-                        <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
-                        <option value="claude-3-opus">Claude 3 Opus</option>
-                        <option value="claude-3-sonnet">Claude 3 Sonnet</option>
-                      </select>
-                      <button type="submit" style={{ ...styles.btn, backgroundColor: '#007bff', color: 'white' }}>{editingEmployee ? 'Save' : 'Create'}</button>
-                      <button type="button" onClick={() => { setShowAddForm(false); setEditingEmployee(null); setFormData({ name: '', role: '', instructions: '', model: 'gpt-4' }) }} style={{ ...styles.btn, backgroundColor: '#6c757d', color: 'white' }}>Cancel</button>
-                    </form>
-                  </div>
-                )}
-
-                <div>
-                  {employees.map(emp => (
-                    <div key={emp.id} style={styles.card}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                        <div style={{ cursor: 'pointer' }} onClick={() => startChat(emp)}>
-                          <h3 style={{ margin: '0 0 5px 0', color: '#007bff' }}>
-                            {emp.name}
-                            {emp.is_default && <span style={{ fontSize: '12px', background: '#007bff', color: 'white', padding: '2px 8px', borderRadius: '10px', marginLeft: '10px' }}>Default</span>}
-                          </h3>
-                          {emp.role && <p style={{ margin: '0 0 5px 0', color: '#666', fontSize: '14px' }}>{emp.role}</p>}
-                          <p style={{ margin: 0, color: '#999', fontSize: '12px' }}>Model: {emp.model} — Click to chat</p>
-                        </div>
-                        <div>
-                          <button onClick={() => startChat(emp)} style={{ ...styles.btn, backgroundColor: '#007bff', color: 'white', padding: '5px 10px', fontSize: '12px' }}>Chat</button>
-                          <button onClick={() => startEdit(emp)} style={{ ...styles.btn, backgroundColor: '#ffc107', color: '#333', padding: '5px 10px', fontSize: '12px' }}>Edit</button>
-                          {!emp.is_default && (
-                            <button onClick={() => handleDeleteEmployee(emp.id)} style={{ ...styles.btn, backgroundColor: '#dc3545', color: 'white', padding: '5px 10px', fontSize: '12px', marginRight: 0 }}>Delete</button>
-                          )}
-                        </div>
-                      </div>
-                      {emp.instructions && (
-                        <p style={{ margin: '10px 0 0 0', padding: '10px', background: '#f8f9fa', borderRadius: '4px', fontSize: '13px', color: '#555' }}>
-                          {emp.instructions.length > 150 ? emp.instructions.substring(0, 150) + '...' : emp.instructions}
-                        </p>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </>
+              ))
             )}
           </div>
-        ) : authStatus && (
-          <div style={{ textAlign: 'center' }}>
-            {authStatus.oauth_configured ? (
-              <button onClick={handleLogin} style={{ padding: '12px 24px', fontSize: '16px', backgroundColor: '#4285f4', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Sign in with Google</button>
-            ) : (
-              <p style={{ color: '#999' }}>Google OAuth not configured yet</p>
-            )}
+        ) : activeChannel ? (
+          <>
+            <div style={styles.header}>
+              <div>
+                <strong>{activeChannel.type === 'project' ? '#' : ''}{activeChannel.name}</strong>
+                {activeChannel.type === 'project' && <span style={{ color: '#999', marginLeft: '10px', fontSize: '14px' }}>Use @name to mention an employee</span>}
+              </div>
+              {activeChannel.type === 'dm' && (
+                <button
+                  onClick={() => { setEditingEmployee(employees.find(e => e.id === activeChannel.id)); setEmployeeForm(employees.find(e => e.id === activeChannel.id) || {}); setShowEmployeeModal(true) }}
+                  style={{ ...styles.btn, background: '#6c757d', color: '#fff' }}
+                >
+                  Edit Employee
+                </button>
+              )}
+              {activeChannel.type === 'project' && (
+                <button
+                  onClick={() => { setEditingProject(projects.find(p => p.id === activeChannel.id)); setProjectForm(projects.find(p => p.id === activeChannel.id) || {}); setShowProjectModal(true) }}
+                  style={{ ...styles.btn, background: '#6c757d', color: '#fff' }}
+                >
+                  Edit Project
+                </button>
+              )}
+            </div>
+
+            <div style={styles.messages}>
+              {messages.length === 0 && (
+                <div style={{ textAlign: 'center', color: '#999', marginTop: '50px' }}>
+                  <p>No messages yet. Start the conversation!</p>
+                </div>
+              )}
+              {messages.map((msg, i) => (
+                <div key={i} style={{ marginBottom: '15px', display: 'flex', gap: '10px' }}>
+                  <div style={{ width: '36px', height: '36px', borderRadius: '4px', background: msg.role === 'user' ? '#4285f4' : '#2bac76', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: '14px', flexShrink: 0 }}>
+                    {msg.role === 'user' ? (user.name?.[0] || 'U') : (msg.employee_id ? getEmployeeName(msg.employee_id)?.[0] : 'A')}
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>
+                      {msg.role === 'user' ? user.name : (msg.employee_id ? getEmployeeName(msg.employee_id) : 'Assistant')}
+                    </div>
+                    <pre style={{ margin: 0, whiteSpace: 'pre-wrap', fontFamily: 'inherit' }}>{msg.content}</pre>
+                  </div>
+                </div>
+              ))}
+              {chatError && (
+                <div style={{ padding: '15px', background: '#ffe6e6', borderRadius: '8px', color: '#cc0000', marginBottom: '15px' }}>
+                  {chatError}
+                </div>
+              )}
+              <div ref={messagesEndRef} />
+            </div>
+
+            <div style={{ padding: '15px', borderTop: '1px solid #ddd' }}>
+              {activeChannel.type === 'dm' && uploadedFiles.length > 0 && (
+                <div style={{ marginBottom: '10px', display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                  {uploadedFiles.map(f => (
+                    <div key={f.id} style={{ display: 'flex', alignItems: 'center', background: '#e3f2fd', padding: '4px 10px', borderRadius: '15px', fontSize: '12px' }}>
+                      <span style={{ marginRight: '8px' }}>{f.filename}</span>
+                      <button onClick={() => handleDeleteFile(f.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#666', padding: '0', fontSize: '14px' }}>x</button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div style={{ display: 'flex', gap: '10px' }}>
+                {activeChannel.type === 'dm' && (
+                  <>
+                    <input type="file" ref={fileInputRef} onChange={handleFileUpload} style={{ display: 'none' }} accept=".txt,.md,.json,.csv,.py,.js,.ts,.jsx,.tsx,.html,.css,.xml,.yaml,.yml,.log,.sql" />
+                    <button
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={isStreaming || uploading || uploadedFiles.length >= 5}
+                      style={{ ...styles.btn, background: '#6c757d', color: '#fff', opacity: (isStreaming || uploading || uploadedFiles.length >= 5) ? 0.6 : 1 }}
+                    >
+                      {uploading ? '...' : '+'}
+                    </button>
+                  </>
+                )}
+                <input
+                  type="text"
+                  value={chatInput}
+                  onChange={(e) => setChatInput(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && sendMessage()}
+                  placeholder={activeChannel.type === 'project' ? 'Message #' + activeChannel.name + ' (use @name to mention)' : 'Message ' + activeChannel.name}
+                  disabled={isStreaming}
+                  style={{ flex: 1, padding: '12px', border: '1px solid #ddd', borderRadius: '8px', fontSize: '14px' }}
+                />
+                <button onClick={sendMessage} disabled={isStreaming || !chatInput.trim()} style={{ ...styles.btn, background: '#007bff', color: '#fff', opacity: isStreaming ? 0.6 : 1 }}>
+                  {isStreaming ? 'Sending...' : 'Send'}
+                </button>
+              </div>
+            </div>
+          </>
+        ) : (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 1, color: '#999' }}>
+            <div style={{ textAlign: 'center' }}>
+              <h2 style={{ color: '#333' }}>Welcome to SilentPartner</h2>
+              <p>Select a project or employee from the sidebar to start chatting</p>
+            </div>
           </div>
         )}
       </div>
+
+      {/* Project Modal */}
+      {showProjectModal && (
+        <div style={styles.modal} onClick={() => setShowProjectModal(false)}>
+          <div style={styles.modalContent} onClick={(e) => e.stopPropagation()}>
+            <h3 style={{ marginTop: 0 }}>{editingProject ? 'Edit Project' : 'New Project'}</h3>
+            <form onSubmit={handleSaveProject}>
+              <input type="text" placeholder="Project name" value={projectForm.name} onChange={(e) => setProjectForm({ ...projectForm, name: e.target.value })} style={styles.input} required />
+              <textarea placeholder="Description (optional)" value={projectForm.description || ''} onChange={(e) => setProjectForm({ ...projectForm, description: e.target.value })} style={styles.textarea} />
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <button type="submit" style={{ ...styles.btn, background: '#007bff', color: '#fff' }}>Save</button>
+                <button type="button" onClick={() => setShowProjectModal(false)} style={{ ...styles.btn, background: '#6c757d', color: '#fff' }}>Cancel</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Employee Modal */}
+      {showEmployeeModal && (
+        <div style={styles.modal} onClick={() => setShowEmployeeModal(false)}>
+          <div style={styles.modalContent} onClick={(e) => e.stopPropagation()}>
+            <h3 style={{ marginTop: 0 }}>{editingEmployee ? 'Edit Employee' : 'New Employee'}</h3>
+            <form onSubmit={handleSaveEmployee}>
+              <input type="text" placeholder="Name" value={employeeForm.name} onChange={(e) => setEmployeeForm({ ...employeeForm, name: e.target.value })} style={styles.input} required disabled={editingEmployee?.is_default} />
+              <input type="text" placeholder="Role (e.g., Developer, QA)" value={employeeForm.role || ''} onChange={(e) => setEmployeeForm({ ...employeeForm, role: e.target.value })} style={styles.input} />
+              <textarea placeholder="Instructions" value={employeeForm.instructions || ''} onChange={(e) => setEmployeeForm({ ...employeeForm, instructions: e.target.value })} style={styles.textarea} />
+              <select value={employeeForm.model || 'gpt-4'} onChange={(e) => setEmployeeForm({ ...employeeForm, model: e.target.value })} style={styles.input}>
+                <option value="gpt-4">GPT-4</option>
+                <option value="gpt-4-turbo">GPT-4 Turbo</option>
+                <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
+                <option value="claude-3-opus">Claude 3 Opus</option>
+                <option value="claude-3-sonnet">Claude 3 Sonnet</option>
+              </select>
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <button type="submit" style={{ ...styles.btn, background: '#007bff', color: '#fff' }}>Save</button>
+                <button type="button" onClick={() => setShowEmployeeModal(false)} style={{ ...styles.btn, background: '#6c757d', color: '#fff' }}>Cancel</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
