@@ -190,6 +190,7 @@ function App() {
   const [editMessageContent, setEditMessageContent] = useState('')
   const [filePreview, setFilePreview] = useState(null) // { file, content, name }
   const [freshContextFrom, setFreshContextFrom] = useState(null) // message index to start fresh from
+  const [modelOverride, setModelOverride] = useState('') // Override employee's default model for this conversation
 
   // Modal state
   const [showProjectModal, setShowProjectModal] = useState(false)
@@ -197,7 +198,7 @@ function App() {
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [editingProject, setEditingProject] = useState(null)
   const [editingEmployee, setEditingEmployee] = useState(null)
-  const [projectForm, setProjectForm] = useState({ name: '', description: '', status: 'active' })
+  const [projectForm, setProjectForm] = useState({ name: '', description: '', status: 'active', instructions: '' })
   const [employeeForm, setEmployeeForm] = useState({ name: '', role: '', instructions: '', model: 'gpt-4' })
   const [keyInputs, setKeyInputs] = useState({ openai: '', anthropic: '' })
   const [savingKeys, setSavingKeys] = useState(false)
@@ -323,7 +324,7 @@ function App() {
       if (res.ok) {
         setShowProjectModal(false)
         setEditingProject(null)
-        setProjectForm({ name: '', description: '' })
+        setProjectForm({ name: '', description: '', status: 'active', instructions: '' })
         fetchProjects()
         showToast(editingProject ? 'Project updated' : 'Project created', 'success')
       } else {
@@ -898,7 +899,8 @@ function App() {
         body: JSON.stringify({
           employee_id: employeeId,
           messages: contextMessages.map(m => ({ role: m.role, content: m.content })),
-          project_id: activeChannel.type === 'project' ? activeChannel.id : null
+          project_id: activeChannel.type === 'project' ? activeChannel.id : null,
+          model_override: modelOverride || null
         })
       })
 
@@ -1068,7 +1070,7 @@ function App() {
         {/* Projects */}
         <div style={styles.sidebarSection}>
           <span>Projects</span>
-          <button onClick={() => { setShowProjectModal(true); setEditingProject(null); setProjectForm({ name: '', description: '', status: 'active' }) }} style={styles.addBtn}>+</button>
+          <button onClick={() => { setShowProjectModal(true); setEditingProject(null); setProjectForm({ name: '', description: '', status: 'active', instructions: '' }) }} style={styles.addBtn}>+</button>
         </div>
         {projects
           .sort((a, b) => (b.starred ? 1 : 0) - (a.starred ? 1 : 0))
@@ -1659,7 +1661,7 @@ function App() {
                   ))}
                 </div>
               )}
-              <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }} className="chat-input-area">
+              <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }} className="chat-input-area">
                 {activeChannel.type === 'dm' && (
                   <>
                     <input type="file" ref={fileInputRef} onChange={handleFileSelect} style={{ display: 'none' }} accept=".txt,.md,.json,.csv,.py,.js,.ts,.jsx,.tsx,.html,.css,.xml,.yaml,.yml,.log,.sql" />
@@ -1672,6 +1674,27 @@ function App() {
                     </button>
                   </>
                 )}
+                <select
+                  value={modelOverride}
+                  onChange={(e) => setModelOverride(e.target.value)}
+                  style={{ padding: '8px', border: '1px solid #ddd', borderRadius: '6px', fontSize: '12px', background: modelOverride ? '#e3f2fd' : '#fff', flexShrink: 0 }}
+                  title="Override model for this conversation"
+                >
+                  <option value="">Default Model</option>
+                  <optgroup label="OpenAI">
+                    <option value="gpt-4">GPT-4</option>
+                    <option value="gpt-4-turbo">GPT-4 Turbo</option>
+                    <option value="gpt-4o">GPT-4o</option>
+                    <option value="gpt-4o-mini">GPT-4o Mini</option>
+                    <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
+                  </optgroup>
+                  <optgroup label="Anthropic">
+                    <option value="claude-3.5-sonnet">Claude 3.5 Sonnet</option>
+                    <option value="claude-3-opus">Claude 3 Opus</option>
+                    <option value="claude-3-sonnet">Claude 3 Sonnet</option>
+                    <option value="claude-3-haiku">Claude 3 Haiku</option>
+                  </optgroup>
+                </select>
                 <input
                   type="text"
                   value={chatInput}
@@ -1810,6 +1833,12 @@ function App() {
             <form onSubmit={handleSaveProject}>
               <input type="text" placeholder="Project name" value={projectForm.name} onChange={(e) => setProjectForm({ ...projectForm, name: e.target.value })} style={styles.input} required />
               <textarea placeholder="Description (optional)" value={projectForm.description || ''} onChange={(e) => setProjectForm({ ...projectForm, description: e.target.value })} style={styles.textarea} />
+              <textarea
+                placeholder="Project Instructions (optional) - These instructions apply to all AI employees when working in this project. Use variables: {{user_name}}, {{employee_name}}, {{project_name}}, {{date}}, {{day}}"
+                value={projectForm.instructions || ''}
+                onChange={(e) => setProjectForm({ ...projectForm, instructions: e.target.value })}
+                style={{ ...styles.textarea, minHeight: '80px' }}
+              />
               {editingProject && (
                 <select value={projectForm.status || 'active'} onChange={(e) => setProjectForm({ ...projectForm, status: e.target.value })} style={styles.input}>
                   <option value="active">Active</option>

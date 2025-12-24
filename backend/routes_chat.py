@@ -26,6 +26,7 @@ class ChatRequest(BaseModel):
     employee_id: str
     messages: List[ChatMessage]
     project_id: Optional[str] = None  # For project-scoped chat
+    model_override: Optional[str] = None  # Override employee's default model for this conversation
 
 
 def get_provider_for_model(model: str) -> str:
@@ -56,6 +57,54 @@ def replace_instruction_variables(instructions: str, user_name: str, employee_na
         result = result.replace(var, value)
 
     return result
+
+
+def estimate_tokens(text: str) -> int:
+    """Rough estimate of tokens (4 chars per token for English)."""
+    if not text:
+        return 0
+    return len(text) // 4
+
+
+def summarize_messages_for_context(messages: List[dict], max_tokens: int = 8000) -> List[dict]:
+    """
+    Summarize older messages when conversation gets too long.
+    Keeps recent messages intact and summarizes older ones.
+    """
+    if not messages:
+        return messages
+
+    # Calculate total tokens
+    total_tokens = sum(estimate_tokens(m.get("content", "")) for m in messages)
+
+    # If under threshold, return as-is
+    if total_tokens <= max_tokens:
+        return messages
+
+    # Keep the last N messages (most recent context)
+    keep_recent = 10  # Keep last 10 messages intact
+    if len(messages) <= keep_recent:
+        return messages
+
+    older_messages = messages[:-keep_recent]
+    recent_messages = messages[-keep_recent:]
+
+    # Create a summary of older messages
+    summary_parts = []
+    for m in older_messages:
+        role = m.get("role", "unknown")
+        content = m.get("content", "")
+        # Truncate very long messages in summary
+        if len(content) > 200:
+            content = content[:200] + "..."
+        summary_parts.append(f"[{role}]: {content}")
+
+    summary_text = "## Summary of Earlier Conversation:\n" + "\n".join(summary_parts)
+
+    # Return summary as first message followed by recent messages
+    summarized_messages = [{"role": "user", "content": summary_text}] + recent_messages
+
+    return summarized_messages
 
 
 async def stream_openai_response(api_key: str, model: str, system_prompt: str, messages: List[dict]):
@@ -141,8 +190,11 @@ async def chat(
     if db_user is None:
         raise HTTPException(status_code=404, detail="User not found")
 
+    # Use model override if provided, otherwise use employee's default model
+    model = request.model_override if request.model_override else employee.model
+
     # Determine provider and check for key
-    provider = get_provider_for_model(employee.model)
+    provider = get_provider_for_model(model)
 
     if provider == "openai":
         if not db_user.openai_api_key:
@@ -165,18 +217,22 @@ async def chat(
             detail="Failed to decrypt API key"
         )
 
-    # Build messages for API
-    api_messages = [{"role": m.role, "content": m.content} for m in request.messages]
+    # Build messages for API and apply summarization for long conversations
+    raw_messages = [{"role": m.role, "content": m.content} for m in request.messages]
+    api_messages = summarize_messages_for_context(raw_messages)
 
-    # Get project name if applicable
+    # Get project details if applicable
     project_id = UUID(request.project_id) if request.project_id else None
     project_name = None
+    project_instructions = None
     if project_id:
         result = await db.execute(
             select(Project).where(Project.id == project_id, Project.owner_id == user_id)
         )
         project = result.scalar_one_or_none()
-        project_name = project.name if project else None
+        if project:
+            project_name = project.name
+            project_instructions = project.instructions
 
     # Get memories and build system prompt
     memories = await get_memories_for_employee(db, user_id, employee.id, project_id)
@@ -189,6 +245,19 @@ async def chat(
         project_name=project_name
     )
     system_prompt = base_instructions
+
+    # Add project-specific instructions if available (conditional instructions)
+    if project_instructions:
+        project_instruction_section = replace_instruction_variables(
+            project_instructions,
+            user_name=db_user.name,
+            employee_name=employee.name,
+            project_name=project_name
+        )
+        if system_prompt:
+            system_prompt = system_prompt + "\n\n## Project-Specific Instructions:\n" + project_instruction_section
+        else:
+            system_prompt = project_instruction_section
 
     if memories:
         memory_section = "\n\n## Important Information to Remember:\n" + "\n".join(f"- {m}" for m in memories)
@@ -218,11 +287,11 @@ async def chat(
     # Stream response
     if provider == "openai":
         return StreamingResponse(
-            stream_openai_response(api_key, employee.model, system_prompt, api_messages),
+            stream_openai_response(api_key, model, system_prompt, api_messages),
             media_type="text/event-stream"
         )
     else:
         return StreamingResponse(
-            stream_anthropic_response(api_key, employee.model, system_prompt, api_messages),
+            stream_anthropic_response(api_key, model, system_prompt, api_messages),
             media_type="text/event-stream"
         )

@@ -15,11 +15,13 @@ router = APIRouter(prefix="/api/projects", tags=["projects"])
 class ProjectCreate(BaseModel):
     name: str
     description: Optional[str] = None
+    instructions: Optional[str] = None
 
 
 class ProjectUpdate(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
+    instructions: Optional[str] = None
     status: Optional[str] = None
     starred: Optional[bool] = None
 
@@ -28,6 +30,7 @@ class ProjectResponse(BaseModel):
     id: str
     name: str
     description: Optional[str]
+    instructions: Optional[str]
     status: str
     starred: bool
     created_at: str
@@ -54,6 +57,7 @@ async def list_projects(
             "id": str(p.id),
             "name": p.name,
             "description": p.description,
+            "instructions": p.instructions,
             "status": p.status,
             "starred": p.starred or False,
             "created_at": p.created_at.isoformat() if p.created_at else None
@@ -74,7 +78,8 @@ async def create_project(
     new_project = Project(
         owner_id=user_id,
         name=project.name,
-        description=project.description
+        description=project.description,
+        instructions=project.instructions
     )
     db.add(new_project)
     await db.commit()
@@ -84,6 +89,7 @@ async def create_project(
         "id": str(new_project.id),
         "name": new_project.name,
         "description": new_project.description,
+        "instructions": new_project.instructions,
         "status": new_project.status,
         "starred": new_project.starred or False,
         "created_at": new_project.created_at.isoformat() if new_project.created_at else None
@@ -111,6 +117,7 @@ async def get_project(
         "id": str(project.id),
         "name": project.name,
         "description": project.description,
+        "instructions": project.instructions,
         "status": project.status,
         "starred": project.starred or False,
         "created_at": project.created_at.isoformat() if project.created_at else None
@@ -139,6 +146,8 @@ async def update_project(
         project.name = update.name
     if update.description is not None:
         project.description = update.description
+    if update.instructions is not None:
+        project.instructions = update.instructions
     if update.status is not None:
         if update.status not in ["active", "completed", "archived"]:
             raise HTTPException(status_code=400, detail="Invalid status")
@@ -153,6 +162,7 @@ async def update_project(
         "id": str(project.id),
         "name": project.name,
         "description": project.description,
+        "instructions": project.instructions,
         "status": project.status,
         "starred": project.starred or False,
         "created_at": project.created_at.isoformat() if project.created_at else None

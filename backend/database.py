@@ -163,3 +163,8 @@ async def run_migrations():
             await conn.execute(text(
                 "ALTER TABLE projects ADD COLUMN IF NOT EXISTS starred BOOLEAN DEFAULT FALSE"
             ))
+
+            # Add instructions column to projects table (Phase 2 - conditional instructions)
+            await conn.execute(text(
+                "ALTER TABLE projects ADD COLUMN IF NOT EXISTS instructions TEXT"
+            ))

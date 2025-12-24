@@ -69,6 +69,7 @@ class Project(Base):
     owner_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True)
     name = Column(String, nullable=False)
     description = Column(Text, nullable=True)
+    instructions = Column(Text, nullable=True)  # Project-specific instructions for AI employees
     status = Column(String, default="active")  # active, completed, archived
     starred = Column(Boolean, default=False)  # Starred/bookmarked conversation
     created_at = Column(DateTime, default=datetime.utcnow)
