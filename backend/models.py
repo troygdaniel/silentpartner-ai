@@ -37,6 +37,7 @@ class Employee(Base):
     model = Column(String, default="gpt-4")  # AI model to use
     is_default = Column(Boolean, default=False)  # True for the default PM (undeletable)
     starred = Column(Boolean, default=False)  # Starred/bookmarked conversation
+    archived = Column(Boolean, default=False)  # Archived conversation (hidden by default)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -52,6 +53,7 @@ class Memory(Base):
     employee_id = Column(UUID(as_uuid=True), ForeignKey("employees.id"), nullable=True, index=True)  # NULL = shared
     project_id = Column(UUID(as_uuid=True), ForeignKey("projects.id"), nullable=True, index=True)  # NULL = not project-scoped
     content = Column(Text, nullable=False)
+    category = Column(String, nullable=True)  # Category/tag: preference, fact, context, instruction, other
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -88,6 +90,7 @@ class Message(Base):
     employee_id = Column(UUID(as_uuid=True), ForeignKey("employees.id"), nullable=True, index=True)  # For DMs or @mentions
     role = Column(String, nullable=False)  # "user" or "assistant"
     content = Column(Text, nullable=False)
+    pinned = Column(Boolean, default=False)  # Pinned/important message
     created_at = Column(DateTime, default=datetime.utcnow)
 
     project = relationship("Project", back_populates="messages")

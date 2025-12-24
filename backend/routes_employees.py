@@ -25,6 +25,7 @@ class EmployeeUpdate(BaseModel):
     instructions: Optional[str] = None
     model: Optional[str] = None
     starred: Optional[bool] = None
+    archived: Optional[bool] = None
 
 
 class EmployeeResponse(BaseModel):
@@ -35,6 +36,7 @@ class EmployeeResponse(BaseModel):
     model: str
     is_default: bool
     starred: bool
+    archived: bool
 
     class Config:
         from_attributes = True
@@ -62,7 +64,8 @@ async def list_employees(
             "instructions": emp.instructions,
             "model": emp.model,
             "is_default": emp.is_default,
-            "starred": emp.starred or False
+            "starred": emp.starred or False,
+            "archived": emp.archived or False
         }
         for emp in employees
     ]
@@ -96,7 +99,8 @@ async def create_employee(
         "instructions": employee.instructions,
         "model": employee.model,
         "is_default": employee.is_default,
-        "starred": employee.starred or False
+        "starred": employee.starred or False,
+        "archived": employee.archived or False
     }
 
 
@@ -128,7 +132,8 @@ async def get_employee(
         "instructions": employee.instructions,
         "model": employee.model,
         "is_default": employee.is_default,
-        "starred": employee.starred or False
+        "starred": employee.starred or False,
+        "archived": employee.archived or False
     }
 
 
@@ -172,6 +177,8 @@ async def update_employee(
         employee.model = data.model
     if data.starred is not None:
         employee.starred = data.starred
+    if data.archived is not None:
+        employee.archived = data.archived
 
     await db.commit()
     await db.refresh(employee)
@@ -183,7 +190,8 @@ async def update_employee(
         "instructions": employee.instructions,
         "model": employee.model,
         "is_default": employee.is_default,
-        "starred": employee.starred or False
+        "starred": employee.starred or False,
+        "archived": employee.archived or False
     }
 
 

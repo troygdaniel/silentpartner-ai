@@ -17,10 +17,12 @@ class MemoryCreate(BaseModel):
     content: str
     employee_id: Optional[str] = None  # NULL = shared memory
     project_id: Optional[str] = None  # NULL = not project-scoped
+    category: Optional[str] = None  # preference, fact, context, instruction, other
 
 
 class MemoryUpdate(BaseModel):
-    content: str
+    content: Optional[str] = None
+    category: Optional[str] = None
 
 
 class MemoryResponse(BaseModel):
@@ -30,6 +32,7 @@ class MemoryResponse(BaseModel):
     employee_name: Optional[str]
     project_id: Optional[str]
     project_name: Optional[str]
+    category: Optional[str]
     created_at: datetime
     updated_at: datetime
 
@@ -71,6 +74,7 @@ async def list_memories(
             employee_name=emp_name,
             project_id=str(memory.project_id) if memory.project_id else None,
             project_name=proj_name,
+            category=memory.category,
             created_at=memory.created_at,
             updated_at=memory.updated_at
         )
@@ -103,6 +107,7 @@ async def list_all_memories(
             employee_name=emp_name,
             project_id=str(memory.project_id) if memory.project_id else None,
             project_name=proj_name,
+            category=memory.category,
             created_at=memory.created_at,
             updated_at=memory.updated_at
         )
@@ -152,7 +157,8 @@ async def create_memory(
         owner_id=user_id,
         employee_id=employee_uuid,
         project_id=project_uuid,
-        content=data.content
+        content=data.content,
+        category=data.category
     )
     db.add(memory)
     await db.commit()
@@ -165,6 +171,7 @@ async def create_memory(
         employee_name=employee_name,
         project_id=str(memory.project_id) if memory.project_id else None,
         project_name=project_name,
+        category=memory.category,
         created_at=memory.created_at,
         updated_at=memory.updated_at
     )
@@ -192,7 +199,10 @@ async def update_memory(
         raise HTTPException(status_code=404, detail="Memory not found")
 
     memory, employee_name, project_name = row
-    memory.content = data.content
+    if data.content is not None:
+        memory.content = data.content
+    if data.category is not None:
+        memory.category = data.category
     await db.commit()
     await db.refresh(memory)
 
@@ -203,6 +213,7 @@ async def update_memory(
         employee_name=employee_name,
         project_id=str(memory.project_id) if memory.project_id else None,
         project_name=project_name,
+        category=memory.category,
         created_at=memory.created_at,
         updated_at=memory.updated_at
     )

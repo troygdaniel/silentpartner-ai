@@ -20,7 +20,8 @@ class MessageCreate(BaseModel):
 
 
 class MessageUpdate(BaseModel):
-    content: str
+    content: Optional[str] = None
+    pinned: Optional[bool] = None
 
 
 class MessageResponse(BaseModel):
@@ -29,6 +30,7 @@ class MessageResponse(BaseModel):
     content: str
     project_id: Optional[str]
     employee_id: Optional[str]
+    pinned: bool
     created_at: str
 
 
@@ -81,6 +83,76 @@ async def search_messages(
             "project_name": projects_map.get(m.project_id) if m.project_id else None,
             "employee_id": str(m.employee_id) if m.employee_id else None,
             "employee_name": employees_map.get(m.employee_id) if m.employee_id else None,
+            "pinned": m.pinned or False,
+            "created_at": m.created_at.isoformat() if m.created_at else None
+        }
+        for m in messages
+    ]
+
+
+@router.get("/pinned/project/{project_id}")
+async def get_pinned_project_messages(
+    project_id: str,
+    user: dict = Depends(require_auth),
+    db: AsyncSession = Depends(get_db)
+) -> List[dict]:
+    """Get all pinned messages for a project channel."""
+    user_id = UUID(user["sub"])
+
+    result = await db.execute(
+        select(Message)
+        .where(
+            Message.project_id == UUID(project_id),
+            Message.owner_id == user_id,
+            Message.pinned == True
+        )
+        .order_by(Message.created_at.asc())
+    )
+    messages = result.scalars().all()
+
+    return [
+        {
+            "id": str(m.id),
+            "role": m.role,
+            "content": m.content,
+            "project_id": str(m.project_id) if m.project_id else None,
+            "employee_id": str(m.employee_id) if m.employee_id else None,
+            "pinned": m.pinned or False,
+            "created_at": m.created_at.isoformat() if m.created_at else None
+        }
+        for m in messages
+    ]
+
+
+@router.get("/pinned/dm/{employee_id}")
+async def get_pinned_dm_messages(
+    employee_id: str,
+    user: dict = Depends(require_auth),
+    db: AsyncSession = Depends(get_db)
+) -> List[dict]:
+    """Get all pinned direct messages with an employee."""
+    user_id = UUID(user["sub"])
+
+    result = await db.execute(
+        select(Message)
+        .where(
+            Message.employee_id == UUID(employee_id),
+            Message.owner_id == user_id,
+            Message.project_id.is_(None),
+            Message.pinned == True
+        )
+        .order_by(Message.created_at.asc())
+    )
+    messages = result.scalars().all()
+
+    return [
+        {
+            "id": str(m.id),
+            "role": m.role,
+            "content": m.content,
+            "project_id": None,
+            "employee_id": str(m.employee_id) if m.employee_id else None,
+            "pinned": m.pinned or False,
             "created_at": m.created_at.isoformat() if m.created_at else None
         }
         for m in messages
@@ -120,6 +192,7 @@ async def get_project_messages(
             "content": m.content,
             "project_id": str(m.project_id) if m.project_id else None,
             "employee_id": str(m.employee_id) if m.employee_id else None,
+            "pinned": m.pinned or False,
             "created_at": m.created_at.isoformat() if m.created_at else None
         }
         for m in messages
@@ -163,6 +236,7 @@ async def get_dm_messages(
             "content": m.content,
             "project_id": None,
             "employee_id": str(m.employee_id) if m.employee_id else None,
+            "pinned": m.pinned or False,
             "created_at": m.created_at.isoformat() if m.created_at else None
         }
         for m in messages
@@ -195,6 +269,7 @@ async def save_message(
         "content": new_message.content,
         "project_id": str(new_message.project_id) if new_message.project_id else None,
         "employee_id": str(new_message.employee_id) if new_message.employee_id else None,
+        "pinned": new_message.pinned or False,
         "created_at": new_message.created_at.isoformat() if new_message.created_at else None
     }
 
@@ -218,7 +293,10 @@ async def update_message(
     if message is None:
         raise HTTPException(status_code=404, detail="Message not found")
 
-    message.content = data.content
+    if data.content is not None:
+        message.content = data.content
+    if data.pinned is not None:
+        message.pinned = data.pinned
     await db.commit()
     await db.refresh(message)
 
@@ -228,6 +306,7 @@ async def update_message(
         "content": message.content,
         "project_id": str(message.project_id) if message.project_id else None,
         "employee_id": str(message.employee_id) if message.employee_id else None,
+        "pinned": message.pinned or False,
         "created_at": message.created_at.isoformat() if message.created_at else None
     }
 

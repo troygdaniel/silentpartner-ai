@@ -201,7 +201,9 @@ function App() {
   const [employeeForm, setEmployeeForm] = useState({ name: '', role: '', instructions: '', model: 'gpt-4' })
   const [keyInputs, setKeyInputs] = useState({ openai: '', anthropic: '' })
   const [savingKeys, setSavingKeys] = useState(false)
-  const [newMemory, setNewMemory] = useState({ content: '', employee_id: '', project_id: '' })
+  const [newMemory, setNewMemory] = useState({ content: '', employee_id: '', project_id: '', category: '' })
+  const [showArchived, setShowArchived] = useState(false)
+  const [pinnedMessages, setPinnedMessages] = useState([])
   const [savingMemory, setSavingMemory] = useState(false)
   const [memorySearch, setMemorySearch] = useState('')
   const [conversationSearch, setConversationSearch] = useState('')
@@ -280,9 +282,23 @@ function App() {
     } catch (err) { console.error('Failed to fetch files:', err) }
   }
 
+  // Fetch pinned messages for a channel
+  const fetchPinnedMessages = async (channel) => {
+    if (!channel) return
+    try {
+      const endpoint = channel.type === 'project'
+        ? `/api/messages/pinned/project/${channel.id}`
+        : `/api/messages/pinned/dm/${channel.id}`
+      const res = await fetchWithRetry(endpoint, { headers: API_HEADERS() })
+      if (res.ok) setPinnedMessages(await res.json())
+      else setPinnedMessages([])
+    } catch (err) { console.error('Failed to fetch pinned messages:', err); setPinnedMessages([]) }
+  }
+
   useEffect(() => {
     if (activeChannel) {
       fetchMessages(activeChannel)
+      fetchPinnedMessages(activeChannel)
       if (activeChannel.type === 'dm') {
         fetchDMFiles(activeChannel.id)
       } else {
@@ -428,7 +444,8 @@ function App() {
       const payload = {
         content: newMemory.content.trim(),
         employee_id: newMemory.employee_id || null,
-        project_id: newMemory.project_id || null
+        project_id: newMemory.project_id || null,
+        category: newMemory.category || null
       }
       const res = await fetch('/api/memories', {
         method: 'POST',
@@ -437,7 +454,7 @@ function App() {
       })
       if (res.ok) {
         fetchMemories()
-        setNewMemory({ content: '', employee_id: '', project_id: '' })
+        setNewMemory({ content: '', employee_id: '', project_id: '', category: '' })
         showToast('Memory created', 'success')
       } else {
         showToast('Failed to create memory', 'error')
@@ -715,6 +732,44 @@ function App() {
         showToast('Failed to delete message', 'error')
       }
     } catch { showToast('Connection error', 'error') }
+  }
+
+  // Toggle pin message
+  const handleTogglePin = async (messageId) => {
+    const message = messages.find(m => m.id === messageId)
+    if (!message) return
+    try {
+      const res = await fetch(`/api/messages/${messageId}`, {
+        method: 'PUT',
+        headers: API_HEADERS(),
+        body: JSON.stringify({ pinned: !message.pinned })
+      })
+      if (res.ok) {
+        setMessages(messages.map(m => m.id === messageId ? { ...m, pinned: !m.pinned } : m))
+        if (activeChannel) fetchPinnedMessages(activeChannel)
+        showToast(message.pinned ? 'Message unpinned' : 'Message pinned', 'success')
+      } else {
+        showToast('Failed to update message', 'error')
+      }
+    } catch { showToast('Connection error', 'error') }
+  }
+
+  // Toggle archive employee
+  const handleToggleArchiveEmployee = async (employeeId, e) => {
+    e.stopPropagation()
+    const employee = employees.find(emp => emp.id === employeeId)
+    if (!employee) return
+    try {
+      const res = await fetch(`/api/employees/${employeeId}`, {
+        method: 'PUT',
+        headers: API_HEADERS(),
+        body: JSON.stringify({ archived: !employee.archived })
+      })
+      if (res.ok) {
+        fetchEmployees()
+        showToast(employee.archived ? 'Conversation unarchived' : 'Conversation archived', 'success')
+      }
+    } catch { showToast('Failed to update', 'error') }
   }
 
   // File upload for DMs - show preview first
@@ -1042,16 +1097,22 @@ function App() {
         {/* Direct Messages */}
         <div style={{ ...styles.sidebarSection, marginTop: '20px' }}>
           <span>Direct Messages</span>
-          <button onClick={() => { setShowEmployeeModal(true); setEditingEmployee(null); setEmployeeForm({ name: '', role: '', instructions: '', model: 'gpt-4' }) }} style={styles.addBtn}>+</button>
+          <div style={{ display: 'flex', gap: '4px' }}>
+            <button onClick={() => setShowArchived(!showArchived)} style={{ ...styles.addBtn, fontSize: '11px' }} title={showArchived ? 'Hide archived' : 'Show archived'}>
+              {showArchived ? '◉' : '○'}
+            </button>
+            <button onClick={() => { setShowEmployeeModal(true); setEditingEmployee(null); setEmployeeForm({ name: '', role: '', instructions: '', model: 'gpt-4' }) }} style={styles.addBtn}>+</button>
+          </div>
         </div>
         {employees
+          .filter(e => showArchived || !e.archived)
           .sort((a, b) => (b.starred ? 1 : 0) - (a.starred ? 1 : 0))
           .map(e => (
           <div
             key={e.id}
             onClick={() => setActiveChannel({ type: 'dm', id: e.id, name: e.name })}
             onContextMenu={(ev) => { ev.preventDefault(); if (!e.is_default && confirm('Delete employee?')) handleDeleteEmployee(e.id) }}
-            style={{ ...styles.channel, ...(activeChannel?.type === 'dm' && activeChannel?.id === e.id ? styles.channelActive : {}), flexDirection: 'column', alignItems: 'flex-start', gap: '2px' }}
+            style={{ ...styles.channel, ...(activeChannel?.type === 'dm' && activeChannel?.id === e.id ? styles.channelActive : {}), flexDirection: 'column', alignItems: 'flex-start', gap: '2px', opacity: e.archived ? 0.5 : 1 }}
             className="sidebar-channel"
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%' }}>
@@ -1062,8 +1123,18 @@ function App() {
               >
                 {e.starred ? '★' : '☆'}
               </span>
-              <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#2bac76', flexShrink: 0 }}></span>
+              <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: e.archived ? '#6c757d' : '#2bac76', flexShrink: 0 }}></span>
               <span style={{ fontWeight: 500, flex: 1 }}>{e.name}</span>
+              {e.archived && <span style={{ fontSize: '10px', color: '#6c757d' }} title="Archived">⊘</span>}
+              <span
+                onClick={(ev) => handleToggleArchiveEmployee(e.id, ev)}
+                style={{ cursor: 'pointer', color: '#555', fontSize: '11px', opacity: 0.6 }}
+                title={e.archived ? 'Unarchive' : 'Archive'}
+                onMouseEnter={(ev) => ev.currentTarget.style.opacity = 1}
+                onMouseLeave={(ev) => ev.currentTarget.style.opacity = 0.6}
+              >
+                {e.archived ? '↩' : '⊘'}
+              </span>
             </div>
             {e.role && <div style={{ color: '#999', fontSize: '11px', paddingLeft: '30px' }}>{e.role}</div>}
           </div>
@@ -1285,6 +1356,18 @@ function App() {
                   </div>
                   <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
                     <select
+                      value={newMemory.category}
+                      onChange={(e) => setNewMemory({ ...newMemory, category: e.target.value })}
+                      style={{ padding: '8px 12px', border: '1px solid #ddd', borderRadius: '6px', fontSize: '14px' }}
+                    >
+                      <option value="">No category</option>
+                      <option value="preference">Preference</option>
+                      <option value="fact">Fact</option>
+                      <option value="context">Context</option>
+                      <option value="instruction">Instruction</option>
+                      <option value="other">Other</option>
+                    </select>
+                    <select
                       value={newMemory.employee_id}
                       onChange={(e) => setNewMemory({ ...newMemory, employee_id: e.target.value })}
                       style={{ padding: '8px 12px', border: '1px solid #ddd', borderRadius: '6px', fontSize: '14px' }}
@@ -1323,7 +1406,8 @@ function App() {
                     ? memories.filter(m =>
                         m.content.toLowerCase().includes(memorySearch.toLowerCase()) ||
                         (m.employee_name && m.employee_name.toLowerCase().includes(memorySearch.toLowerCase())) ||
-                        (m.project_name && m.project_name.toLowerCase().includes(memorySearch.toLowerCase()))
+                        (m.project_name && m.project_name.toLowerCase().includes(memorySearch.toLowerCase())) ||
+                        (m.category && m.category.toLowerCase().includes(memorySearch.toLowerCase()))
                       )
                     : memories
                   return filteredMemories.length === 0 ? (
@@ -1349,7 +1433,18 @@ function App() {
                               ×
                             </button>
                           </div>
-                          <div style={{ marginTop: '10px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <div style={{ marginTop: '10px', display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                            {m.category && (
+                              <span style={{
+                                fontSize: '11px',
+                                padding: '2px 8px',
+                                borderRadius: '10px',
+                                background: m.category === 'preference' ? '#e8eaf6' : m.category === 'fact' ? '#fff8e1' : m.category === 'context' ? '#e0f7fa' : m.category === 'instruction' ? '#fce4ec' : '#f5f5f5',
+                                color: m.category === 'preference' ? '#3f51b5' : m.category === 'fact' ? '#ff8f00' : m.category === 'context' ? '#00838f' : m.category === 'instruction' ? '#c2185b' : '#616161'
+                              }}>
+                                {m.category}
+                              </span>
+                            )}
                             <span style={{
                               fontSize: '11px',
                               padding: '2px 8px',
@@ -1441,6 +1536,25 @@ function App() {
             </div>
 
             <div style={styles.messages}>
+              {/* Pinned messages banner */}
+              {pinnedMessages.length > 0 && (
+                <div style={{ marginBottom: '15px', padding: '10px 15px', background: '#fff3cd', borderRadius: '8px', border: '1px solid #ffc107' }}>
+                  <div style={{ fontSize: '12px', fontWeight: 'bold', color: '#856404', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    📌 {pinnedMessages.length} Pinned Message{pinnedMessages.length > 1 ? 's' : ''}
+                  </div>
+                  {pinnedMessages.slice(0, 3).map(pm => (
+                    <div key={pm.id} style={{ fontSize: '13px', color: '#856404', padding: '4px 0', borderTop: '1px solid rgba(0,0,0,0.1)' }}>
+                      <span style={{ fontWeight: 500 }}>{pm.role === 'user' ? user.name : getEmployeeName(pm.employee_id)}: </span>
+                      {pm.content.length > 100 ? pm.content.slice(0, 100) + '...' : pm.content}
+                    </div>
+                  ))}
+                  {pinnedMessages.length > 3 && (
+                    <div style={{ fontSize: '11px', color: '#856404', opacity: 0.7, marginTop: '4px' }}>
+                      +{pinnedMessages.length - 3} more pinned
+                    </div>
+                  )}
+                </div>
+              )}
               {messages.length === 0 && (
                 <div style={{ textAlign: 'center', color: '#999', marginTop: '50px' }}>
                   <p>No messages yet. Start the conversation!</p>
@@ -1470,6 +1584,17 @@ function App() {
                       >
                         Copy
                       </button>
+                      {msg.id && !isStreaming && (
+                        <button
+                          onClick={() => handleTogglePin(msg.id)}
+                          style={{ background: 'none', border: 'none', color: msg.pinned ? '#ffc107' : '#999', cursor: 'pointer', padding: '2px 6px', fontSize: '12px', opacity: msg.pinned ? 1 : 0.6 }}
+                          title={msg.pinned ? 'Unpin message' : 'Pin message'}
+                          onMouseEnter={(e) => e.target.style.opacity = 1}
+                          onMouseLeave={(e) => e.target.style.opacity = msg.pinned ? 1 : 0.6}
+                        >
+                          {msg.pinned ? '📌' : 'Pin'}
+                        </button>
+                      )}
                       {msg.id && msg.role === 'user' && !isStreaming && (
                         <>
                           <button
