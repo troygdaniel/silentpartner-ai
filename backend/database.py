@@ -74,7 +74,7 @@ async def run_migrations():
                     content TEXT NOT NULL,
                     created_at TIMESTAMP DEFAULT NOW(),
                     updated_at TIMESTAMP DEFAULT NOW()
-                );
-                CREATE INDEX IF NOT EXISTS ix_memories_owner_id ON memories(owner_id);
-                CREATE INDEX IF NOT EXISTS ix_memories_employee_id ON memories(employee_id);
+                )
             """))
+            await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_memories_owner_id ON memories(owner_id)"))
+            await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_memories_employee_id ON memories(employee_id)"))
