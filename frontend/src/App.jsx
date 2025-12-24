@@ -384,11 +384,13 @@ function App() {
             key={e.id}
             onClick={() => setActiveChannel({ type: 'dm', id: e.id, name: e.name })}
             onContextMenu={(ev) => { ev.preventDefault(); if (!e.is_default && confirm('Delete employee?')) handleDeleteEmployee(e.id) }}
-            style={{ ...styles.channel, ...(activeChannel?.type === 'dm' && activeChannel?.id === e.id ? styles.channelActive : {}) }}
+            style={{ ...styles.channel, ...(activeChannel?.type === 'dm' && activeChannel?.id === e.id ? styles.channelActive : {}), flexDirection: 'column', alignItems: 'flex-start', gap: '2px' }}
           >
-            <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#2bac76', display: 'inline-block' }}></span>
-            {e.name}
-            {e.role && <span style={{ color: '#999', fontSize: '11px', marginLeft: 'auto' }}>{e.role}</span>}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%' }}>
+              <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#2bac76', flexShrink: 0 }}></span>
+              <span style={{ fontWeight: 500 }}>{e.name}</span>
+            </div>
+            {e.role && <div style={{ color: '#999', fontSize: '11px', paddingLeft: '18px' }}>{e.role}</div>}
           </div>
         ))}
 
@@ -549,10 +551,115 @@ function App() {
             </div>
           </>
         ) : (
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 1, color: '#999' }}>
-            <div style={{ textAlign: 'center' }}>
-              <h2 style={{ color: '#333' }}>Welcome to SilentPartner</h2>
-              <p>Select a project or employee from the sidebar to start chatting</p>
+          <div style={{ flex: 1, overflow: 'auto', padding: '40px' }}>
+            <div style={{ maxWidth: '900px', margin: '0 auto' }}>
+              <h1 style={{ color: '#333', marginBottom: '8px' }}>Welcome to SilentPartner</h1>
+              <p style={{ color: '#666', marginBottom: '40px' }}>Your AI consulting team, configured by you.</p>
+
+              {/* Team Section */}
+              <div style={{ marginBottom: '40px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                  <h2 style={{ color: '#333', margin: 0 }}>Your Team</h2>
+                  <button
+                    onClick={() => { setShowEmployeeModal(true); setEditingEmployee(null); setEmployeeForm({ name: '', role: '', instructions: '', model: 'gpt-4' }) }}
+                    style={{ padding: '8px 16px', background: '#007bff', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '14px' }}
+                  >
+                    + Add Employee
+                  </button>
+                </div>
+
+                {employees.length === 0 ? (
+                  <div style={{ padding: '40px', background: '#f8f9fa', borderRadius: '8px', textAlign: 'center', color: '#666' }}>
+                    <p style={{ margin: 0 }}>No employees yet. Add your first AI team member to get started.</p>
+                  </div>
+                ) : (
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }}>
+                    {employees.map(e => (
+                      <div
+                        key={e.id}
+                        style={{
+                          background: '#fff',
+                          border: '1px solid #e0e0e0',
+                          borderRadius: '8px',
+                          padding: '20px',
+                          cursor: 'pointer',
+                          transition: 'box-shadow 0.2s, border-color 0.2s'
+                        }}
+                        onClick={() => setActiveChannel({ type: 'dm', id: e.id, name: e.name })}
+                        onMouseEnter={(ev) => { ev.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.1)'; ev.currentTarget.style.borderColor = '#007bff' }}
+                        onMouseLeave={(ev) => { ev.currentTarget.style.boxShadow = 'none'; ev.currentTarget.style.borderColor = '#e0e0e0' }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
+                          <div style={{
+                            width: '48px',
+                            height: '48px',
+                            borderRadius: '8px',
+                            background: '#2bac76',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            color: '#fff',
+                            fontSize: '20px',
+                            fontWeight: 'bold',
+                            flexShrink: 0
+                          }}>
+                            {e.name[0]?.toUpperCase()}
+                          </div>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontWeight: 600, fontSize: '16px', color: '#333', marginBottom: '4px' }}>{e.name}</div>
+                            <div style={{ color: '#666', fontSize: '14px', marginBottom: '8px' }}>{e.role || 'No role assigned'}</div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <span style={{
+                                fontSize: '11px',
+                                padding: '2px 8px',
+                                background: e.model?.startsWith('claude') ? '#f3e5f5' : '#e3f2fd',
+                                color: e.model?.startsWith('claude') ? '#7b1fa2' : '#1565c0',
+                                borderRadius: '12px'
+                              }}>
+                                {e.model || 'gpt-4'}
+                              </span>
+                            </div>
+                          </div>
+                          <button
+                            onClick={(ev) => { ev.stopPropagation(); setEditingEmployee(e); setEmployeeForm(e); setShowEmployeeModal(true) }}
+                            style={{ background: 'none', border: 'none', color: '#999', cursor: 'pointer', padding: '4px', fontSize: '18px' }}
+                            title="Edit employee"
+                          >
+                            ✎
+                          </button>
+                        </div>
+                        {e.instructions && (
+                          <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid #f0f0f0', color: '#888', fontSize: '13px', lineHeight: 1.4 }}>
+                            {e.instructions.length > 100 ? e.instructions.slice(0, 100) + '...' : e.instructions}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Quick Stats */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '16px' }}>
+                <div style={{ background: '#f8f9fa', borderRadius: '8px', padding: '20px', textAlign: 'center' }}>
+                  <div style={{ fontSize: '28px', fontWeight: 'bold', color: '#333' }}>{employees.length}</div>
+                  <div style={{ color: '#666', fontSize: '14px' }}>Team Members</div>
+                </div>
+                <div style={{ background: '#f8f9fa', borderRadius: '8px', padding: '20px', textAlign: 'center' }}>
+                  <div style={{ fontSize: '28px', fontWeight: 'bold', color: '#333' }}>{projects.length}</div>
+                  <div style={{ color: '#666', fontSize: '14px' }}>Projects</div>
+                </div>
+                <div style={{ background: '#f8f9fa', borderRadius: '8px', padding: '20px', textAlign: 'center' }}>
+                  <div style={{ fontSize: '28px', fontWeight: 'bold', color: '#333' }}>{memories.length}</div>
+                  <div style={{ color: '#666', fontSize: '14px' }}>Memories</div>
+                </div>
+                <div style={{ background: '#f8f9fa', borderRadius: '8px', padding: '20px', textAlign: 'center' }}>
+                  <div style={{ fontSize: '28px', fontWeight: 'bold', color: apiKeys.has_openai_key || apiKeys.has_anthropic_key ? '#2bac76' : '#dc3545' }}>
+                    {apiKeys.has_openai_key || apiKeys.has_anthropic_key ? '✓' : '!'}
+                  </div>
+                  <div style={{ color: '#666', fontSize: '14px' }}>API Keys</div>
+                </div>
+              </div>
             </div>
           </div>
         )}
