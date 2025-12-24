@@ -60,13 +60,13 @@ This roadmap outlines planned features and improvements, organized into iterativ
 - [ ] Model selection per conversation (not just per employee)
 
 ### 2.2 Context Management
-- [ ] Token count display for conversations
+- [x] Token count display for conversations ✅
 - [ ] Automatic conversation summarization for long chats
 - [ ] Configurable context window size
 - [x] "Start fresh" button to clear context without deleting history ✅
 
 ### 2.3 Advanced Instructions
-- [ ] Instruction templates/presets
+- [x] Instruction templates/presets ✅
 - [ ] Variables in instructions (e.g., {{user_name}})
 - [ ] Conditional instructions based on project
 - [ ] Import/export employee configurations
@@ -91,7 +91,7 @@ This roadmap outlines planned features and improvements, organized into iterativ
 - [ ] Project-specific employee assignments
 
 ### 3.2 Conversation Organization
-- [ ] Search across all conversations
+- [x] Search across all conversations ✅
 - [ ] Star/bookmark important conversations
 - [ ] Conversation tagging
 - [ ] Archive old conversations

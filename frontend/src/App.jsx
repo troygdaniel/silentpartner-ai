@@ -54,6 +54,71 @@ function Toast({ message, type, onClose }) {
   )
 }
 
+// Estimate token count (rough approximation: ~4 chars per token for English)
+function estimateTokens(text) {
+  if (!text) return 0
+  return Math.ceil(text.length / 4)
+}
+
+// Instruction templates for common employee roles
+const INSTRUCTION_TEMPLATES = {
+  '': { name: 'Custom (no template)', instructions: '' },
+  'developer': {
+    name: 'Software Developer',
+    instructions: `You are an expert software developer. You write clean, maintainable, and well-documented code. When helping with code:
+- Explain your reasoning and approach
+- Follow best practices and design patterns
+- Consider edge cases and error handling
+- Suggest improvements when appropriate
+- Use clear variable names and add comments for complex logic`
+  },
+  'writer': {
+    name: 'Content Writer',
+    instructions: `You are a skilled content writer. You create engaging, clear, and well-structured content. When writing:
+- Match the requested tone and style
+- Use clear, concise language
+- Structure content with headings and bullet points when appropriate
+- Proofread for grammar and clarity
+- Consider the target audience`
+  },
+  'analyst': {
+    name: 'Data Analyst',
+    instructions: `You are an analytical data expert. You help interpret data and provide insights. When analyzing:
+- Look for patterns, trends, and anomalies
+- Present findings clearly with supporting evidence
+- Create summaries and visualizations when helpful
+- Ask clarifying questions about data sources
+- Consider statistical significance and limitations`
+  },
+  'researcher': {
+    name: 'Research Assistant',
+    instructions: `You are a thorough research assistant. You help gather, organize, and synthesize information. When researching:
+- Provide comprehensive yet focused information
+- Cite sources when possible
+- Distinguish between facts and opinions
+- Organize findings in a logical structure
+- Highlight key takeaways and implications`
+  },
+  'strategist': {
+    name: 'Business Strategist',
+    instructions: `You are a strategic business advisor. You help with planning, decision-making, and problem-solving. When advising:
+- Consider multiple perspectives and options
+- Analyze risks and opportunities
+- Provide actionable recommendations
+- Support advice with reasoning
+- Consider both short-term and long-term implications`
+  },
+  'editor': {
+    name: 'Editor & Proofreader',
+    instructions: `You are a meticulous editor and proofreader. You help improve and polish written content. When editing:
+- Fix grammar, spelling, and punctuation errors
+- Improve clarity and readability
+- Maintain the author's voice and intent
+- Suggest structural improvements
+- Explain significant changes you make`
+  }
+}
+
 // Simple markdown-like rendering for AI responses
 function renderMarkdown(text) {
   if (!text) return null
@@ -139,6 +204,10 @@ function App() {
   const [newMemory, setNewMemory] = useState({ content: '', employee_id: '', project_id: '' })
   const [savingMemory, setSavingMemory] = useState(false)
   const [memorySearch, setMemorySearch] = useState('')
+  const [conversationSearch, setConversationSearch] = useState('')
+  const [searchResults, setSearchResults] = useState([])
+  const [searching, setSearching] = useState(false)
+  const [showSearchResults, setShowSearchResults] = useState(false)
 
   // Fetch functions with retry logic
   const fetchProjects = async () => {
@@ -434,6 +503,39 @@ function App() {
     showToast('Conversation exported to Markdown', 'success')
   }
 
+  // Search conversations
+  const handleSearchConversations = async (query) => {
+    setConversationSearch(query)
+    if (!query.trim()) {
+      setSearchResults([])
+      setShowSearchResults(false)
+      return
+    }
+    if (query.trim().length < 2) return
+    setSearching(true)
+    setShowSearchResults(true)
+    try {
+      const res = await fetch(`/api/messages/search?q=${encodeURIComponent(query.trim())}`, {
+        headers: API_HEADERS()
+      })
+      if (res.ok) {
+        setSearchResults(await res.json())
+      }
+    } catch (err) { console.error('Search failed:', err) }
+    setSearching(false)
+  }
+
+  // Navigate to search result
+  const handleSearchResultClick = (result) => {
+    if (result.project_id) {
+      setActiveChannel({ type: 'project', id: result.project_id, name: result.project_name })
+    } else if (result.employee_id) {
+      setActiveChannel({ type: 'dm', id: result.employee_id, name: result.employee_name })
+    }
+    setShowSearchResults(false)
+    setConversationSearch('')
+  }
+
   // Edit message
   const handleEditMessage = async (messageId) => {
     if (!editMessageContent.trim()) return
@@ -725,7 +827,44 @@ function App() {
 
       {/* Sidebar */}
       <div style={styles.sidebar}>
-        <div style={styles.sidebarHeader} onClick={() => { setActiveChannel(null); setShowSettings(false); setMessages([]) }}>SilentPartner</div>
+        <div style={styles.sidebarHeader} onClick={() => { setActiveChannel(null); setShowSettings(false); setMessages([]); setShowSearchResults(false) }}>SilentPartner</div>
+
+        {/* Search */}
+        <div style={{ padding: '10px 15px', position: 'relative' }}>
+          <input
+            type="text"
+            placeholder="Search conversations..."
+            value={conversationSearch}
+            onChange={(e) => handleSearchConversations(e.target.value)}
+            style={{ width: '100%', padding: '8px 10px', border: '1px solid #444', borderRadius: '4px', background: '#2c2f33', color: '#fff', fontSize: '13px', boxSizing: 'border-box' }}
+          />
+          {showSearchResults && (
+            <div style={{ position: 'absolute', top: '100%', left: '15px', right: '15px', background: '#2c2f33', border: '1px solid #444', borderRadius: '4px', maxHeight: '300px', overflow: 'auto', zIndex: 100, boxShadow: '0 4px 12px rgba(0,0,0,0.3)' }}>
+              {searching ? (
+                <div style={{ padding: '15px', color: '#999', textAlign: 'center' }}>Searching...</div>
+              ) : searchResults.length === 0 ? (
+                <div style={{ padding: '15px', color: '#999', textAlign: 'center' }}>No results found</div>
+              ) : (
+                searchResults.map(r => (
+                  <div
+                    key={r.id}
+                    onClick={() => handleSearchResultClick(r)}
+                    style={{ padding: '10px 12px', cursor: 'pointer', borderBottom: '1px solid #444' }}
+                    onMouseEnter={(e) => e.currentTarget.style.background = '#3c3f44'}
+                    onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                  >
+                    <div style={{ fontSize: '11px', color: '#888', marginBottom: '4px' }}>
+                      {r.project_name ? `#${r.project_name}` : r.employee_name || 'Unknown'} • {r.role}
+                    </div>
+                    <div style={{ fontSize: '13px', color: '#ddd', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {r.content.length > 80 ? r.content.slice(0, 80) + '...' : r.content}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+        </div>
 
         {/* Projects */}
         <div style={styles.sidebarSection}>
@@ -1059,6 +1198,17 @@ function App() {
                 {activeChannel.type === 'project' && <span style={{ color: '#999', marginLeft: '10px', fontSize: '14px' }}>Use @name to mention an employee</span>}
               </div>
               <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }} className="chat-header-buttons">
+                {messages.length > 0 && (() => {
+                  const contextMessages = freshContextFrom !== null ? messages.slice(freshContextFrom) : messages
+                  const totalTokens = contextMessages.reduce((sum, m) => sum + estimateTokens(m.content), 0)
+                  const tokenColor = totalTokens > 100000 ? '#dc3545' : totalTokens > 50000 ? '#ffc107' : '#28a745'
+                  return (
+                    <span style={{ fontSize: '11px', padding: '4px 8px', background: '#f8f9fa', color: '#666', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '4px' }} title="Estimated tokens in context">
+                      <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: tokenColor }}></span>
+                      ~{totalTokens.toLocaleString()} tokens
+                    </span>
+                  )
+                })()}
                 {freshContextFrom !== null && (
                   <span style={{ fontSize: '12px', padding: '4px 10px', background: '#fff3cd', color: '#856404', borderRadius: '12px' }}>
                     Fresh context active
@@ -1364,7 +1514,24 @@ function App() {
             <form onSubmit={handleSaveEmployee}>
               <input type="text" placeholder="Name" value={employeeForm.name} onChange={(e) => setEmployeeForm({ ...employeeForm, name: e.target.value })} style={styles.input} required disabled={editingEmployee?.is_default} />
               <input type="text" placeholder="Role (e.g., Developer, QA)" value={employeeForm.role || ''} onChange={(e) => setEmployeeForm({ ...employeeForm, role: e.target.value })} style={styles.input} />
-              <textarea placeholder="Instructions" value={employeeForm.instructions || ''} onChange={(e) => setEmployeeForm({ ...employeeForm, instructions: e.target.value })} style={styles.textarea} />
+              <div style={{ marginBottom: '10px' }}>
+                <label style={{ fontSize: '12px', color: '#666', marginBottom: '4px', display: 'block' }}>Instruction Template</label>
+                <select
+                  onChange={(e) => {
+                    const template = INSTRUCTION_TEMPLATES[e.target.value]
+                    if (template && template.instructions) {
+                      setEmployeeForm({ ...employeeForm, instructions: template.instructions })
+                    }
+                  }}
+                  style={{ ...styles.input, marginBottom: 0 }}
+                  defaultValue=""
+                >
+                  {Object.entries(INSTRUCTION_TEMPLATES).map(([key, val]) => (
+                    <option key={key} value={key}>{val.name}</option>
+                  ))}
+                </select>
+              </div>
+              <textarea placeholder="Instructions (customize after selecting a template, or write your own)" value={employeeForm.instructions || ''} onChange={(e) => setEmployeeForm({ ...employeeForm, instructions: e.target.value })} style={styles.textarea} />
               <select value={employeeForm.model || 'gpt-4'} onChange={(e) => setEmployeeForm({ ...employeeForm, model: e.target.value })} style={styles.input}>
                 <optgroup label="OpenAI">
                   <option value="gpt-4">GPT-4</option>

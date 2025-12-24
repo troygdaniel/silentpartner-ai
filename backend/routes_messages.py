@@ -1,6 +1,6 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, or_
 from pydantic import BaseModel
 from typing import List, Optional
 from uuid import UUID
@@ -30,6 +30,61 @@ class MessageResponse(BaseModel):
     project_id: Optional[str]
     employee_id: Optional[str]
     created_at: str
+
+
+@router.get("/search")
+async def search_messages(
+    q: str = Query(..., min_length=1, description="Search query"),
+    user: dict = Depends(require_auth),
+    db: AsyncSession = Depends(get_db)
+) -> List[dict]:
+    """Search across all messages."""
+    user_id = UUID(user["sub"])
+    search_term = f"%{q.lower()}%"
+
+    # Search messages containing the query
+    result = await db.execute(
+        select(Message)
+        .where(
+            Message.owner_id == user_id,
+            Message.content.ilike(search_term)
+        )
+        .order_by(Message.created_at.desc())
+        .limit(50)  # Limit results for performance
+    )
+    messages = result.scalars().all()
+
+    # Get project and employee names for context
+    project_ids = {m.project_id for m in messages if m.project_id}
+    employee_ids = {m.employee_id for m in messages if m.employee_id}
+
+    projects_map = {}
+    if project_ids:
+        result = await db.execute(
+            select(Project).where(Project.id.in_(project_ids))
+        )
+        projects_map = {p.id: p.name for p in result.scalars().all()}
+
+    employees_map = {}
+    if employee_ids:
+        result = await db.execute(
+            select(Employee).where(Employee.id.in_(employee_ids))
+        )
+        employees_map = {e.id: e.name for e in result.scalars().all()}
+
+    return [
+        {
+            "id": str(m.id),
+            "role": m.role,
+            "content": m.content,
+            "project_id": str(m.project_id) if m.project_id else None,
+            "project_name": projects_map.get(m.project_id) if m.project_id else None,
+            "employee_id": str(m.employee_id) if m.employee_id else None,
+            "employee_name": employees_map.get(m.employee_id) if m.employee_id else None,
+            "created_at": m.created_at.isoformat() if m.created_at else None
+        }
+        for m in messages
+    ]
 
 
 @router.get("/project/{project_id}")
