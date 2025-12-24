@@ -124,6 +124,7 @@ function App() {
   const [editingMessage, setEditingMessage] = useState(null)
   const [editMessageContent, setEditMessageContent] = useState('')
   const [filePreview, setFilePreview] = useState(null) // { file, content, name }
+  const [freshContextFrom, setFreshContextFrom] = useState(null) // message index to start fresh from
 
   // Modal state
   const [showProjectModal, setShowProjectModal] = useState(false)
@@ -137,6 +138,7 @@ function App() {
   const [savingKeys, setSavingKeys] = useState(false)
   const [newMemory, setNewMemory] = useState({ content: '', employee_id: '', project_id: '' })
   const [savingMemory, setSavingMemory] = useState(false)
+  const [memorySearch, setMemorySearch] = useState('')
 
   // Fetch functions with retry logic
   const fetchProjects = async () => {
@@ -219,6 +221,7 @@ function App() {
       }
       setChatError(null)
       setShowSettings(false)
+      setFreshContextFrom(null) // Reset fresh context when switching channels
     }
   }, [activeChannel])
 
@@ -384,11 +387,51 @@ function App() {
       const res = await fetch(endpoint, { method: 'DELETE', headers: API_HEADERS() })
       if (res.ok) {
         setMessages([])
+        setFreshContextFrom(null)
         showToast('Chat history cleared', 'success')
       } else {
         showToast('Failed to clear chat', 'error')
       }
     } catch { showToast('Connection error', 'error') }
+  }
+
+  // Start fresh - clear context without deleting history
+  const handleStartFresh = () => {
+    if (messages.length === 0) return
+    setFreshContextFrom(messages.length)
+    showToast('Context cleared - starting fresh. History preserved.', 'success')
+  }
+
+  // Resume using full history
+  const handleResumeContext = () => {
+    setFreshContextFrom(null)
+    showToast('Full conversation history restored', 'success')
+  }
+
+  // Export conversation to Markdown
+  const handleExportMarkdown = () => {
+    if (!activeChannel || messages.length === 0) return
+    const channelName = activeChannel.type === 'project' ? `#${activeChannel.name}` : activeChannel.name
+    let markdown = `# ${channelName} - Conversation Export\n\n`
+    markdown += `*Exported on ${new Date().toLocaleDateString()} at ${new Date().toLocaleTimeString()}*\n\n---\n\n`
+
+    messages.forEach(msg => {
+      const sender = msg.role === 'user' ? user.name : (msg.employee_id ? getEmployeeName(msg.employee_id) : 'Assistant')
+      const time = msg.created_at ? new Date(msg.created_at).toLocaleString() : ''
+      markdown += `### ${sender}${time ? ` (${time})` : ''}\n\n${msg.content}\n\n---\n\n`
+    })
+
+    // Download as file
+    const blob = new Blob([markdown], { type: 'text/markdown' })
+    const url = window.URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${activeChannel.name.replace(/[^a-z0-9]/gi, '-').toLowerCase()}-${new Date().toISOString().split('T')[0]}.md`
+    document.body.appendChild(a)
+    a.click()
+    window.URL.revokeObjectURL(url)
+    document.body.removeChild(a)
+    showToast('Conversation exported to Markdown', 'success')
   }
 
   // Edit message
@@ -544,12 +587,16 @@ function App() {
     }
 
     try {
+      // If fresh context is active, only send messages from that point onwards
+      const contextMessages = freshContextFrom !== null
+        ? newMessages.slice(freshContextFrom)
+        : newMessages
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: API_HEADERS(),
         body: JSON.stringify({
           employee_id: employeeId,
-          messages: newMessages.map(m => ({ role: m.role, content: m.content })),
+          messages: contextMessages.map(m => ({ role: m.role, content: m.content })),
           project_id: activeChannel.type === 'project' ? activeChannel.id : null
         })
       })
@@ -895,6 +942,19 @@ function App() {
                   Memories are facts that your AI employees will remember across all conversations. They help personalize responses and maintain context about you, your business, and your preferences.
                 </p>
 
+                {/* Memory Search */}
+                {memories.length > 0 && (
+                  <div style={{ marginBottom: '20px' }}>
+                    <input
+                      type="text"
+                      placeholder="Search memories..."
+                      value={memorySearch}
+                      onChange={(e) => setMemorySearch(e.target.value)}
+                      style={{ width: '100%', padding: '12px 14px', border: '1px solid #ddd', borderRadius: '6px', fontSize: '14px', boxSizing: 'border-box' }}
+                    />
+                  </div>
+                )}
+
                 {/* Add Memory Form */}
                 <form onSubmit={handleCreateMemory} style={{ marginBottom: '24px', padding: '16px', background: '#f8f9fa', borderRadius: '8px' }}>
                   <div style={{ marginBottom: '12px' }}>
@@ -941,35 +1001,53 @@ function App() {
                       Memories are created when you chat with employees. Ask them to "remember" something important.
                     </p>
                   </div>
-                ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                    {memories.map(m => (
-                      <div key={m.id} style={{ background: '#fff', border: '1px solid #e0e0e0', borderRadius: '8px', padding: '16px' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                          <p style={{ margin: 0, color: '#333', lineHeight: 1.5, flex: 1 }}>{m.content}</p>
-                          <button
-                            onClick={() => handleDeleteMemory(m.id)}
-                            style={{ background: 'none', border: 'none', color: '#999', cursor: 'pointer', padding: '4px 8px', fontSize: '14px' }}
-                            title="Delete memory"
-                          >
-                            ×
-                          </button>
+                ) : (() => {
+                  const filteredMemories = memorySearch.trim()
+                    ? memories.filter(m =>
+                        m.content.toLowerCase().includes(memorySearch.toLowerCase()) ||
+                        (m.employee_name && m.employee_name.toLowerCase().includes(memorySearch.toLowerCase())) ||
+                        (m.project_name && m.project_name.toLowerCase().includes(memorySearch.toLowerCase()))
+                      )
+                    : memories
+                  return filteredMemories.length === 0 ? (
+                    <div style={{ background: '#f8f9fa', borderRadius: '12px', padding: '30px', textAlign: 'center' }}>
+                      <p style={{ color: '#666', margin: 0 }}>No memories match "{memorySearch}"</p>
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                      {memorySearch.trim() && (
+                        <div style={{ fontSize: '13px', color: '#666', marginBottom: '4px' }}>
+                          Showing {filteredMemories.length} of {memories.length} memories
                         </div>
-                        <div style={{ marginTop: '10px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <span style={{
-                            fontSize: '11px',
-                            padding: '2px 8px',
-                            borderRadius: '10px',
-                            background: m.project_name ? '#fff3e0' : m.employee_name ? '#e8f5e9' : '#e3f2fd',
-                            color: m.project_name ? '#e65100' : m.employee_name ? '#2e7d32' : '#1565c0'
-                          }}>
-                            {m.project_name ? `# ${m.project_name}` : m.employee_name ? m.employee_name : 'Shared with all'}
-                          </span>
+                      )}
+                      {filteredMemories.map(m => (
+                        <div key={m.id} style={{ background: '#fff', border: '1px solid #e0e0e0', borderRadius: '8px', padding: '16px' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                            <p style={{ margin: 0, color: '#333', lineHeight: 1.5, flex: 1 }}>{m.content}</p>
+                            <button
+                              onClick={() => handleDeleteMemory(m.id)}
+                              style={{ background: 'none', border: 'none', color: '#999', cursor: 'pointer', padding: '4px 8px', fontSize: '14px' }}
+                              title="Delete memory"
+                            >
+                              ×
+                            </button>
+                          </div>
+                          <div style={{ marginTop: '10px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <span style={{
+                              fontSize: '11px',
+                              padding: '2px 8px',
+                              borderRadius: '10px',
+                              background: m.project_name ? '#fff3e0' : m.employee_name ? '#e8f5e9' : '#e3f2fd',
+                              color: m.project_name ? '#e65100' : m.employee_name ? '#2e7d32' : '#1565c0'
+                            }}>
+                              {m.project_name ? `# ${m.project_name}` : m.employee_name ? m.employee_name : 'Shared with all'}
+                            </span>
+                          </div>
                         </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
+                      ))}
+                    </div>
+                  )
+                })()}
               </div>
             </div>
           </div>
@@ -980,11 +1058,30 @@ function App() {
                 <strong>{activeChannel.type === 'project' ? '#' : ''}{activeChannel.name}</strong>
                 {activeChannel.type === 'project' && <span style={{ color: '#999', marginLeft: '10px', fontSize: '14px' }}>Use @name to mention an employee</span>}
               </div>
-              <div style={{ display: 'flex', gap: '8px' }} className="chat-header-buttons">
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }} className="chat-header-buttons">
+                {freshContextFrom !== null && (
+                  <span style={{ fontSize: '12px', padding: '4px 10px', background: '#fff3cd', color: '#856404', borderRadius: '12px' }}>
+                    Fresh context active
+                  </span>
+                )}
                 {messages.length > 0 && (
-                  <button onClick={handleClearChat} style={{ ...styles.btn, background: '#dc3545', color: '#fff' }}>
-                    Clear Chat
-                  </button>
+                  <>
+                    <button onClick={handleExportMarkdown} style={{ ...styles.btn, background: '#6f42c1', color: '#fff' }} title="Export conversation as Markdown">
+                      Export
+                    </button>
+                    {freshContextFrom === null ? (
+                      <button onClick={handleStartFresh} style={{ ...styles.btn, background: '#17a2b8', color: '#fff' }} title="Clear AI context without deleting messages">
+                        Start Fresh
+                      </button>
+                    ) : (
+                      <button onClick={handleResumeContext} style={{ ...styles.btn, background: '#28a745', color: '#fff' }} title="Restore full conversation context">
+                        Resume Full
+                      </button>
+                    )}
+                    <button onClick={handleClearChat} style={{ ...styles.btn, background: '#dc3545', color: '#fff' }}>
+                      Clear Chat
+                    </button>
+                  </>
                 )}
                 {activeChannel.type === 'dm' && (
                   <button

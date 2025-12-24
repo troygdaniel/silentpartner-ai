@@ -63,7 +63,7 @@ This roadmap outlines planned features and improvements, organized into iterativ
 - [ ] Token count display for conversations
 - [ ] Automatic conversation summarization for long chats
 - [ ] Configurable context window size
-- [ ] "Start fresh" button to clear context without deleting history
+- [x] "Start fresh" button to clear context without deleting history ✅
 
 ### 2.3 Advanced Instructions
 - [ ] Instruction templates/presets
@@ -75,7 +75,7 @@ This roadmap outlines planned features and improvements, organized into iterativ
 - [x] Manual memory creation from UI ✅
 - [x] Delete individual memories from UI ✅
 - [ ] Memory categories/tags
-- [ ] Memory search
+- [x] Memory search ✅
 - [ ] Bulk memory import/export
 
 ---
@@ -97,7 +97,7 @@ This roadmap outlines planned features and improvements, organized into iterativ
 - [ ] Archive old conversations
 
 ### 3.3 Export & Reporting
-- [ ] Export conversation to Markdown
+- [x] Export conversation to Markdown ✅
 - [ ] Export conversation to PDF
 - [ ] Usage statistics dashboard
 - [ ] API cost tracking per employee/project
