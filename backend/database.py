@@ -316,9 +316,9 @@ async def seed_role_templates(conn):
             await conn.execute(
                 text("""
                     INSERT INTO role_templates
-                    (slug, name, description, purpose, boundaries_does, boundaries_does_not,
+                    (id, slug, name, description, purpose, boundaries_does, boundaries_does_not,
                      instructions, recommended_integrations, recommended_model, is_default, is_undeletable, version)
-                    VALUES (:slug, :name, :description, :purpose, :boundaries_does, :boundaries_does_not,
+                    VALUES (gen_random_uuid(), :slug, :name, :description, :purpose, :boundaries_does, :boundaries_does_not,
                             :instructions, :recommended_integrations, :recommended_model, :is_default, :is_undeletable, 1)
                 """),
                 {
