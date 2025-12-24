@@ -1,7 +1,10 @@
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
+from sqlalchemy import text
 import os
+
+from database import get_engine
 
 app = FastAPI()
 
@@ -9,6 +12,20 @@ app = FastAPI()
 @app.get("/api/health")
 def health_check():
     return {"status": "ok"}
+
+
+@app.get("/api/db-health")
+async def db_health_check():
+    engine = get_engine()
+    if engine is None:
+        return {"status": "error", "message": "Database not configured"}
+    try:
+        async with engine.connect() as conn:
+            result = await conn.execute(text("SELECT 1"))
+            result.fetchone()
+        return {"status": "ok", "database": "connected"}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
 
 
 # Serve static frontend files
