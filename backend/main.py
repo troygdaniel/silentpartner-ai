@@ -5,8 +5,12 @@ from sqlalchemy import text
 import os
 
 from database import get_engine
+from routes_auth import router as auth_router
 
 app = FastAPI()
+
+# Register routers
+app.include_router(auth_router)
 
 
 @app.get("/api/health")
