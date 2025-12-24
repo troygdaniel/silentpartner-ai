@@ -68,10 +68,12 @@ async def stream_anthropic_response(api_key: str, model: str, system_prompt: str
 
     client = Anthropic(api_key=api_key)
 
-    # Map model names
+    # Map model names to their API identifiers
     model_map = {
         "claude-3-opus": "claude-3-opus-20240229",
         "claude-3-sonnet": "claude-3-sonnet-20240229",
+        "claude-3.5-sonnet": "claude-3-5-sonnet-20241022",
+        "claude-3-haiku": "claude-3-haiku-20240307",
     }
     actual_model = model_map.get(model, model)
 

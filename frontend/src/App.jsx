@@ -135,6 +135,8 @@ function App() {
   const [employeeForm, setEmployeeForm] = useState({ name: '', role: '', instructions: '', model: 'gpt-4' })
   const [keyInputs, setKeyInputs] = useState({ openai: '', anthropic: '' })
   const [savingKeys, setSavingKeys] = useState(false)
+  const [newMemory, setNewMemory] = useState({ content: '', employee_id: '', project_id: '' })
+  const [savingMemory, setSavingMemory] = useState(false)
 
   // Fetch functions with retry logic
   const fetchProjects = async () => {
@@ -343,6 +345,33 @@ function App() {
         showToast('Failed to delete memory', 'error')
       }
     } catch { showToast('Connection error', 'error') }
+  }
+
+  // Create memory
+  const handleCreateMemory = async (e) => {
+    e.preventDefault()
+    if (!newMemory.content.trim()) return
+    setSavingMemory(true)
+    try {
+      const payload = {
+        content: newMemory.content.trim(),
+        employee_id: newMemory.employee_id || null,
+        project_id: newMemory.project_id || null
+      }
+      const res = await fetch('/api/memories', {
+        method: 'POST',
+        headers: API_HEADERS(),
+        body: JSON.stringify(payload)
+      })
+      if (res.ok) {
+        fetchMemories()
+        setNewMemory({ content: '', employee_id: '', project_id: '' })
+        showToast('Memory created', 'success')
+      } else {
+        showToast('Failed to create memory', 'error')
+      }
+    } catch { showToast('Connection error', 'error') }
+    setSavingMemory(false)
   }
 
   // Clear chat history
@@ -866,6 +895,44 @@ function App() {
                   Memories are facts that your AI employees will remember across all conversations. They help personalize responses and maintain context about you, your business, and your preferences.
                 </p>
 
+                {/* Add Memory Form */}
+                <form onSubmit={handleCreateMemory} style={{ marginBottom: '24px', padding: '16px', background: '#f8f9fa', borderRadius: '8px' }}>
+                  <div style={{ marginBottom: '12px' }}>
+                    <textarea
+                      placeholder="Enter a fact you want your AI employees to remember..."
+                      value={newMemory.content}
+                      onChange={(e) => setNewMemory({ ...newMemory, content: e.target.value })}
+                      style={{ width: '100%', padding: '12px', border: '1px solid #ddd', borderRadius: '6px', minHeight: '80px', fontSize: '14px', resize: 'vertical' }}
+                      required
+                    />
+                  </div>
+                  <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
+                    <select
+                      value={newMemory.employee_id}
+                      onChange={(e) => setNewMemory({ ...newMemory, employee_id: e.target.value })}
+                      style={{ padding: '8px 12px', border: '1px solid #ddd', borderRadius: '6px', fontSize: '14px' }}
+                    >
+                      <option value="">All employees (shared)</option>
+                      {employees.map(e => <option key={e.id} value={e.id}>{e.name} only</option>)}
+                    </select>
+                    <select
+                      value={newMemory.project_id}
+                      onChange={(e) => setNewMemory({ ...newMemory, project_id: e.target.value })}
+                      style={{ padding: '8px 12px', border: '1px solid #ddd', borderRadius: '6px', fontSize: '14px' }}
+                    >
+                      <option value="">All projects</option>
+                      {projects.map(p => <option key={p.id} value={p.id}>#{p.name} only</option>)}
+                    </select>
+                    <button
+                      type="submit"
+                      disabled={savingMemory || !newMemory.content.trim()}
+                      style={{ padding: '8px 16px', background: '#007bff', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '14px', opacity: (savingMemory || !newMemory.content.trim()) ? 0.6 : 1 }}
+                    >
+                      {savingMemory ? 'Saving...' : 'Add Memory'}
+                    </button>
+                  </div>
+                </form>
+
                 {memories.length === 0 ? (
                   <div style={{ background: '#f8f9fa', borderRadius: '12px', padding: '30px', textAlign: 'center' }}>
                     <div style={{ fontSize: '32px', marginBottom: '12px' }}>brain icon</div>
@@ -1202,11 +1269,19 @@ function App() {
               <input type="text" placeholder="Role (e.g., Developer, QA)" value={employeeForm.role || ''} onChange={(e) => setEmployeeForm({ ...employeeForm, role: e.target.value })} style={styles.input} />
               <textarea placeholder="Instructions" value={employeeForm.instructions || ''} onChange={(e) => setEmployeeForm({ ...employeeForm, instructions: e.target.value })} style={styles.textarea} />
               <select value={employeeForm.model || 'gpt-4'} onChange={(e) => setEmployeeForm({ ...employeeForm, model: e.target.value })} style={styles.input}>
-                <option value="gpt-4">GPT-4</option>
-                <option value="gpt-4-turbo">GPT-4 Turbo</option>
-                <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
-                <option value="claude-3-opus">Claude 3 Opus</option>
-                <option value="claude-3-sonnet">Claude 3 Sonnet</option>
+                <optgroup label="OpenAI">
+                  <option value="gpt-4">GPT-4</option>
+                  <option value="gpt-4-turbo">GPT-4 Turbo</option>
+                  <option value="gpt-4o">GPT-4o</option>
+                  <option value="gpt-4o-mini">GPT-4o Mini</option>
+                  <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
+                </optgroup>
+                <optgroup label="Anthropic">
+                  <option value="claude-3.5-sonnet">Claude 3.5 Sonnet (Recommended)</option>
+                  <option value="claude-3-opus">Claude 3 Opus</option>
+                  <option value="claude-3-sonnet">Claude 3 Sonnet</option>
+                  <option value="claude-3-haiku">Claude 3 Haiku (Fast)</option>
+                </optgroup>
               </select>
               <div style={{ display: 'flex', gap: '10px' }}>
                 <button type="submit" style={{ ...styles.btn, background: '#007bff', color: '#fff' }}>Save</button>
