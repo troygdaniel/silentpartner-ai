@@ -17,22 +17,22 @@ This roadmap outlines planned features and improvements, organized into iterativ
 
 ---
 
-## Phase 1: Polish & Reliability
+## Phase 1: Polish & Reliability ✅ (In Progress)
 
 **Goal:** Improve stability and user experience for existing features.
 
 ### 1.1 Error Handling & Feedback
-- [ ] Toast notifications for success/error states
-- [ ] Better error messages when API keys are invalid
+- [x] Toast notifications for success/error states ✅
+- [x] Better error messages when API keys are invalid ✅
 - [ ] Retry logic for failed API calls
-- [ ] Loading states for all async operations
+- [x] Loading states for all async operations ✅
 
 ### 1.2 Chat Improvements
-- [ ] Message timestamps displayed in UI
+- [x] Message timestamps displayed in UI ✅
 - [ ] Edit/delete individual messages
-- [ ] Copy message to clipboard button
-- [ ] Markdown rendering for AI responses
-- [ ] Code syntax highlighting in responses
+- [x] Copy message to clipboard button ✅
+- [x] Markdown rendering for AI responses ✅
+- [x] Code syntax highlighting in responses ✅
 
 ### 1.3 File Handling
 - [ ] Persist DM file uploads (currently session-only)
@@ -41,7 +41,7 @@ This roadmap outlines planned features and improvements, organized into iterativ
 - [ ] Download uploaded files
 
 ### 1.4 Mobile Responsiveness
-- [ ] Collapsible sidebar on mobile
+- [x] Collapsible sidebar on mobile ✅
 - [ ] Touch-friendly interactions
 - [ ] Responsive chat input area
 

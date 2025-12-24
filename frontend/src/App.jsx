@@ -5,10 +5,84 @@ const API_HEADERS = () => ({
   'Content-Type': 'application/json'
 })
 
+// Toast notification component
+function Toast({ message, type, onClose }) {
+  useEffect(() => {
+    const timer = setTimeout(onClose, 4000)
+    return () => clearTimeout(timer)
+  }, [onClose])
+
+  const bgColor = type === 'success' ? '#28a745' : type === 'error' ? '#dc3545' : '#007bff'
+  return (
+    <div style={{
+      position: 'fixed',
+      bottom: '20px',
+      right: '20px',
+      background: bgColor,
+      color: '#fff',
+      padding: '12px 20px',
+      borderRadius: '8px',
+      boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+      zIndex: 2000,
+      display: 'flex',
+      alignItems: 'center',
+      gap: '12px',
+      maxWidth: '400px',
+      animation: 'slideIn 0.3s ease'
+    }}>
+      <span>{message}</span>
+      <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', fontSize: '18px', padding: 0 }}>×</button>
+    </div>
+  )
+}
+
+// Simple markdown-like rendering for AI responses
+function renderMarkdown(text) {
+  if (!text) return null
+  // Split by code blocks first
+  const parts = text.split(/(```[\s\S]*?```)/g)
+  return parts.map((part, i) => {
+    if (part.startsWith('```')) {
+      const match = part.match(/```(\w+)?\n?([\s\S]*?)```/)
+      const lang = match?.[1] || ''
+      const code = match?.[2] || part.slice(3, -3)
+      return (
+        <pre key={i} style={{ background: '#1e1e1e', color: '#d4d4d4', padding: '12px', borderRadius: '6px', overflow: 'auto', fontSize: '13px', margin: '8px 0' }}>
+          {lang && <div style={{ color: '#888', fontSize: '11px', marginBottom: '8px' }}>{lang}</div>}
+          <code>{code}</code>
+        </pre>
+      )
+    }
+    // Handle inline code
+    const inlineCodeParts = part.split(/(`[^`]+`)/g)
+    return (
+      <span key={i}>
+        {inlineCodeParts.map((p, j) => {
+          if (p.startsWith('`') && p.endsWith('`')) {
+            return <code key={j} style={{ background: '#f1f1f1', padding: '2px 6px', borderRadius: '3px', fontSize: '13px' }}>{p.slice(1, -1)}</code>
+          }
+          // Handle bold
+          const boldParts = p.split(/(\*\*[^*]+\*\*)/g)
+          return boldParts.map((bp, k) => {
+            if (bp.startsWith('**') && bp.endsWith('**')) {
+              return <strong key={`${j}-${k}`}>{bp.slice(2, -2)}</strong>
+            }
+            return bp
+          })
+        })}
+      </span>
+    )
+  })
+}
+
 function App() {
   const [authStatus, setAuthStatus] = useState(null)
   const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(true)
+
+  // Toast state
+  const [toast, setToast] = useState(null)
+  const showToast = (message, type = 'info') => setToast({ message, type })
 
   // Data
   const [projects, setProjects] = useState([])
@@ -33,6 +107,7 @@ function App() {
   // Modal state
   const [showProjectModal, setShowProjectModal] = useState(false)
   const [showEmployeeModal, setShowEmployeeModal] = useState(false)
+  const [sidebarOpen, setSidebarOpen] = useState(true)
   const [editingProject, setEditingProject] = useState(null)
   const [editingEmployee, setEditingEmployee] = useState(null)
   const [projectForm, setProjectForm] = useState({ name: '', description: '' })
@@ -120,20 +195,33 @@ function App() {
     e.preventDefault()
     const method = editingProject ? 'PUT' : 'POST'
     const url = editingProject ? `/api/projects/${editingProject.id}` : '/api/projects'
-    const res = await fetch(url, { method, headers: API_HEADERS(), body: JSON.stringify(projectForm) })
-    if (res.ok) {
-      setShowProjectModal(false)
-      setEditingProject(null)
-      setProjectForm({ name: '', description: '' })
-      fetchProjects()
-    }
+    try {
+      const res = await fetch(url, { method, headers: API_HEADERS(), body: JSON.stringify(projectForm) })
+      if (res.ok) {
+        setShowProjectModal(false)
+        setEditingProject(null)
+        setProjectForm({ name: '', description: '' })
+        fetchProjects()
+        showToast(editingProject ? 'Project updated' : 'Project created', 'success')
+      } else {
+        const err = await res.json()
+        showToast(err.detail || 'Failed to save project', 'error')
+      }
+    } catch { showToast('Connection error', 'error') }
   }
 
   const handleDeleteProject = async (id) => {
     if (!confirm('Delete this project and all its messages?')) return
-    await fetch(`/api/projects/${id}`, { method: 'DELETE', headers: API_HEADERS() })
-    if (activeChannel?.type === 'project' && activeChannel?.id === id) setActiveChannel(null)
-    fetchProjects()
+    try {
+      const res = await fetch(`/api/projects/${id}`, { method: 'DELETE', headers: API_HEADERS() })
+      if (res.ok) {
+        if (activeChannel?.type === 'project' && activeChannel?.id === id) setActiveChannel(null)
+        fetchProjects()
+        showToast('Project deleted', 'success')
+      } else {
+        showToast('Failed to delete project', 'error')
+      }
+    } catch { showToast('Connection error', 'error') }
   }
 
   // Employee CRUD
@@ -141,20 +229,33 @@ function App() {
     e.preventDefault()
     const method = editingEmployee ? 'PUT' : 'POST'
     const url = editingEmployee ? `/api/employees/${editingEmployee.id}` : '/api/employees'
-    const res = await fetch(url, { method, headers: API_HEADERS(), body: JSON.stringify(employeeForm) })
-    if (res.ok) {
-      setShowEmployeeModal(false)
-      setEditingEmployee(null)
-      setEmployeeForm({ name: '', role: '', instructions: '', model: 'gpt-4' })
-      fetchEmployees()
-    }
+    try {
+      const res = await fetch(url, { method, headers: API_HEADERS(), body: JSON.stringify(employeeForm) })
+      if (res.ok) {
+        setShowEmployeeModal(false)
+        setEditingEmployee(null)
+        setEmployeeForm({ name: '', role: '', instructions: '', model: 'gpt-4' })
+        fetchEmployees()
+        showToast(editingEmployee ? 'Employee updated' : 'Employee created', 'success')
+      } else {
+        const err = await res.json()
+        showToast(err.detail || 'Failed to save employee', 'error')
+      }
+    } catch { showToast('Connection error', 'error') }
   }
 
   const handleDeleteEmployee = async (id) => {
     if (!confirm('Delete this employee?')) return
-    await fetch(`/api/employees/${id}`, { method: 'DELETE', headers: API_HEADERS() })
-    if (activeChannel?.type === 'dm' && activeChannel?.id === id) setActiveChannel(null)
-    fetchEmployees()
+    try {
+      const res = await fetch(`/api/employees/${id}`, { method: 'DELETE', headers: API_HEADERS() })
+      if (res.ok) {
+        if (activeChannel?.type === 'dm' && activeChannel?.id === id) setActiveChannel(null)
+        fetchEmployees()
+        showToast('Employee deleted', 'success')
+      } else {
+        showToast('Failed to delete employee', 'error')
+      }
+    } catch { showToast('Connection error', 'error') }
   }
 
   // API Keys
@@ -163,18 +264,39 @@ function App() {
     const body = {}
     if (keyInputs.openai) body.openai_api_key = keyInputs.openai
     if (keyInputs.anthropic) body.anthropic_api_key = keyInputs.anthropic
-    const res = await fetch('/api/settings/api-keys', { method: 'PUT', headers: API_HEADERS(), body: JSON.stringify(body) })
-    if (res.ok) {
-      setApiKeys(await res.json())
-      setKeyInputs({ openai: '', anthropic: '' })
-    }
+    try {
+      const res = await fetch('/api/settings/api-keys', { method: 'PUT', headers: API_HEADERS(), body: JSON.stringify(body) })
+      if (res.ok) {
+        setApiKeys(await res.json())
+        setKeyInputs({ openai: '', anthropic: '' })
+        showToast('API keys saved securely', 'success')
+      } else {
+        const err = await res.json()
+        showToast(err.detail || 'Failed to save API keys', 'error')
+      }
+    } catch { showToast('Connection error', 'error') }
     setSavingKeys(false)
   }
 
   const removeApiKey = async (provider) => {
     const body = provider === 'openai' ? { openai_api_key: '' } : { anthropic_api_key: '' }
-    const res = await fetch('/api/settings/api-keys', { method: 'PUT', headers: API_HEADERS(), body: JSON.stringify(body) })
-    if (res.ok) setApiKeys(await res.json())
+    try {
+      const res = await fetch('/api/settings/api-keys', { method: 'PUT', headers: API_HEADERS(), body: JSON.stringify(body) })
+      if (res.ok) {
+        setApiKeys(await res.json())
+        showToast(`${provider === 'openai' ? 'OpenAI' : 'Anthropic'} API key removed`, 'success')
+      } else {
+        showToast('Failed to remove API key', 'error')
+      }
+    } catch { showToast('Connection error', 'error') }
+  }
+
+  // Copy message to clipboard
+  const copyToClipboard = async (content) => {
+    try {
+      await navigator.clipboard.writeText(content)
+      showToast('Copied to clipboard', 'success')
+    } catch { showToast('Failed to copy', 'error') }
   }
 
   // File upload for DMs
@@ -334,7 +456,17 @@ function App() {
   }
 
   const styles = {
-    sidebar: { width: '260px', background: '#1a1d21', color: '#fff', display: 'flex', flexDirection: 'column', height: '100vh' },
+    sidebar: {
+      width: '260px',
+      background: '#1a1d21',
+      color: '#fff',
+      display: 'flex',
+      flexDirection: 'column',
+      height: '100vh',
+      position: 'relative',
+      transition: 'margin-left 0.3s ease',
+      marginLeft: sidebarOpen ? 0 : '-260px'
+    },
     sidebarHeader: { padding: '15px', borderBottom: '1px solid #333', fontWeight: 'bold', fontSize: '18px', cursor: 'pointer' },
     sidebarSection: { padding: '10px 15px 5px', color: '#999', fontSize: '12px', textTransform: 'uppercase', display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
     channel: { padding: '6px 15px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' },
@@ -353,7 +485,32 @@ function App() {
   const getEmployeeName = (id) => employees.find(e => e.id === id)?.name || 'Unknown'
 
   return (
-    <div style={{ display: 'flex', fontFamily: 'system-ui, sans-serif', height: '100vh' }}>
+    <div style={{ display: 'flex', fontFamily: 'system-ui, sans-serif', height: '100vh', overflow: 'hidden' }}>
+      {/* Mobile sidebar toggle */}
+      <button
+        onClick={() => setSidebarOpen(!sidebarOpen)}
+        style={{
+          position: 'fixed',
+          top: '10px',
+          left: sidebarOpen ? '270px' : '10px',
+          zIndex: 1001,
+          background: '#1a1d21',
+          color: '#fff',
+          border: 'none',
+          borderRadius: '4px',
+          padding: '8px 12px',
+          cursor: 'pointer',
+          transition: 'left 0.3s ease',
+          display: 'none'
+        }}
+        className="sidebar-toggle"
+      >
+        {sidebarOpen ? '←' : '☰'}
+      </button>
+
+      {/* Toast notifications */}
+      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+
       {/* Sidebar */}
       <div style={styles.sidebar}>
         <div style={styles.sidebarHeader} onClick={() => { setActiveChannel(null); setShowSettings(false); setMessages([]) }}>SilentPartner</div>
@@ -634,15 +791,33 @@ function App() {
                 </div>
               )}
               {messages.map((msg, i) => (
-                <div key={i} style={{ marginBottom: '15px', display: 'flex', gap: '10px' }}>
+                <div key={i} style={{ marginBottom: '15px', display: 'flex', gap: '10px', position: 'relative' }} className="message-container">
                   <div style={{ width: '36px', height: '36px', borderRadius: '4px', background: msg.role === 'user' ? '#4285f4' : '#2bac76', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: '14px', flexShrink: 0 }}>
                     {msg.role === 'user' ? (user.name?.[0] || 'U') : (msg.employee_id ? getEmployeeName(msg.employee_id)?.[0] : 'A')}
                   </div>
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>
-                      {msg.role === 'user' ? user.name : (msg.employee_id ? getEmployeeName(msg.employee_id) : 'Assistant')}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                      <span style={{ fontWeight: 'bold' }}>
+                        {msg.role === 'user' ? user.name : (msg.employee_id ? getEmployeeName(msg.employee_id) : 'Assistant')}
+                      </span>
+                      {msg.created_at && (
+                        <span style={{ fontSize: '11px', color: '#999' }}>
+                          {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      )}
+                      <button
+                        onClick={() => copyToClipboard(msg.content)}
+                        style={{ background: 'none', border: 'none', color: '#999', cursor: 'pointer', padding: '2px 6px', fontSize: '12px', opacity: 0.6 }}
+                        title="Copy message"
+                        onMouseEnter={(e) => e.target.style.opacity = 1}
+                        onMouseLeave={(e) => e.target.style.opacity = 0.6}
+                      >
+                        Copy
+                      </button>
                     </div>
-                    <pre style={{ margin: 0, whiteSpace: 'pre-wrap', fontFamily: 'inherit' }}>{msg.content}</pre>
+                    <div style={{ margin: 0, whiteSpace: 'pre-wrap', fontFamily: 'inherit', lineHeight: 1.5 }}>
+                      {msg.role === 'assistant' ? renderMarkdown(msg.content) : msg.content}
+                    </div>
                   </div>
                 </div>
               ))}
