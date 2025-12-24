@@ -35,6 +35,29 @@ def get_provider_for_model(model: str) -> str:
     return "openai"
 
 
+def replace_instruction_variables(instructions: str, user_name: str, employee_name: str, project_name: str = None) -> str:
+    """Replace template variables in instructions with actual values."""
+    if not instructions:
+        return instructions
+
+    from datetime import datetime
+
+    replacements = {
+        "{{user_name}}": user_name or "User",
+        "{{employee_name}}": employee_name or "Assistant",
+        "{{project_name}}": project_name or "",
+        "{{date}}": datetime.now().strftime("%Y-%m-%d"),
+        "{{time}}": datetime.now().strftime("%H:%M"),
+        "{{day}}": datetime.now().strftime("%A"),
+    }
+
+    result = instructions
+    for var, value in replacements.items():
+        result = result.replace(var, value)
+
+    return result
+
+
 async def stream_openai_response(api_key: str, model: str, system_prompt: str, messages: List[dict]):
     """Stream response from OpenAI API."""
     from openai import OpenAI
@@ -145,10 +168,27 @@ async def chat(
     # Build messages for API
     api_messages = [{"role": m.role, "content": m.content} for m in request.messages]
 
-    # Get memories and build system prompt
+    # Get project name if applicable
     project_id = UUID(request.project_id) if request.project_id else None
+    project_name = None
+    if project_id:
+        result = await db.execute(
+            select(Project).where(Project.id == project_id, Project.owner_id == user_id)
+        )
+        project = result.scalar_one_or_none()
+        project_name = project.name if project else None
+
+    # Get memories and build system prompt
     memories = await get_memories_for_employee(db, user_id, employee.id, project_id)
-    system_prompt = employee.instructions or ""
+
+    # Replace instruction variables with actual values
+    base_instructions = replace_instruction_variables(
+        employee.instructions or "",
+        user_name=db_user.name,
+        employee_name=employee.name,
+        project_name=project_name
+    )
+    system_prompt = base_instructions
 
     if memories:
         memory_section = "\n\n## Important Information to Remember:\n" + "\n".join(f"- {m}" for m in memories)

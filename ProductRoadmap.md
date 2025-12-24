@@ -67,9 +67,9 @@ This roadmap outlines planned features and improvements, organized into iterativ
 
 ### 2.3 Advanced Instructions
 - [x] Instruction templates/presets ✅
-- [ ] Variables in instructions (e.g., {{user_name}})
+- [x] Variables in instructions (e.g., {{user_name}}) ✅
 - [ ] Conditional instructions based on project
-- [ ] Import/export employee configurations
+- [x] Import/export employee configurations ✅
 
 ### 2.4 Memory Enhancements
 - [x] Manual memory creation from UI ✅
@@ -85,7 +85,7 @@ This roadmap outlines planned features and improvements, organized into iterativ
 **Goal:** Enable team usage and better project management.
 
 ### 3.1 Project Enhancements
-- [ ] Project status tracking (active, on-hold, completed)
+- [x] Project status tracking (active, on-hold, completed) ✅
 - [ ] Project descriptions visible in UI
 - [ ] Pin important messages in channels
 - [ ] Project-specific employee assignments

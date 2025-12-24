@@ -197,7 +197,7 @@ function App() {
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [editingProject, setEditingProject] = useState(null)
   const [editingEmployee, setEditingEmployee] = useState(null)
-  const [projectForm, setProjectForm] = useState({ name: '', description: '' })
+  const [projectForm, setProjectForm] = useState({ name: '', description: '', status: 'active' })
   const [employeeForm, setEmployeeForm] = useState({ name: '', role: '', instructions: '', model: 'gpt-4' })
   const [keyInputs, setKeyInputs] = useState({ openai: '', anthropic: '' })
   const [savingKeys, setSavingKeys] = useState(false)
@@ -536,6 +536,56 @@ function App() {
     setConversationSearch('')
   }
 
+  // Export employee configuration
+  const handleExportEmployee = () => {
+    if (!employeeForm.name) return
+    const config = {
+      name: employeeForm.name,
+      role: employeeForm.role || '',
+      instructions: employeeForm.instructions || '',
+      model: employeeForm.model || 'gpt-4',
+      exportedAt: new Date().toISOString(),
+      version: '1.0'
+    }
+    const blob = new Blob([JSON.stringify(config, null, 2)], { type: 'application/json' })
+    const url = window.URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${employeeForm.name.replace(/[^a-z0-9]/gi, '-').toLowerCase()}-config.json`
+    document.body.appendChild(a)
+    a.click()
+    window.URL.revokeObjectURL(url)
+    document.body.removeChild(a)
+    showToast('Employee configuration exported', 'success')
+  }
+
+  // Import employee configuration
+  const handleImportEmployee = (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = (event) => {
+      try {
+        const config = JSON.parse(event.target.result)
+        if (config.name && config.model) {
+          setEmployeeForm({
+            name: config.name,
+            role: config.role || '',
+            instructions: config.instructions || '',
+            model: config.model || 'gpt-4'
+          })
+          showToast('Configuration imported - review and save', 'success')
+        } else {
+          showToast('Invalid configuration file', 'error')
+        }
+      } catch {
+        showToast('Failed to parse configuration file', 'error')
+      }
+    }
+    reader.readAsText(file)
+    e.target.value = ''
+  }
+
   // Edit message
   const handleEditMessage = async (messageId) => {
     if (!editMessageContent.trim()) return
@@ -869,17 +919,20 @@ function App() {
         {/* Projects */}
         <div style={styles.sidebarSection}>
           <span>Projects</span>
-          <button onClick={() => { setShowProjectModal(true); setEditingProject(null); setProjectForm({ name: '', description: '' }) }} style={styles.addBtn}>+</button>
+          <button onClick={() => { setShowProjectModal(true); setEditingProject(null); setProjectForm({ name: '', description: '', status: 'active' }) }} style={styles.addBtn}>+</button>
         </div>
         {projects.map(p => (
           <div
             key={p.id}
             onClick={() => setActiveChannel({ type: 'project', id: p.id, name: p.name })}
             onContextMenu={(e) => { e.preventDefault(); if (confirm('Delete project?')) handleDeleteProject(p.id) }}
-            style={{ ...styles.channel, ...(activeChannel?.type === 'project' && activeChannel?.id === p.id ? styles.channelActive : {}) }}
+            style={{ ...styles.channel, ...(activeChannel?.type === 'project' && activeChannel?.id === p.id ? styles.channelActive : {}), opacity: p.status === 'archived' ? 0.5 : 1 }}
             className="sidebar-channel"
           >
-            <span style={{ color: '#999' }}>#</span> {p.name}
+            <span style={{ color: '#999' }}>#</span>
+            <span style={{ flex: 1 }}>{p.name}</span>
+            {p.status === 'completed' && <span style={{ fontSize: '10px', color: '#28a745' }} title="Completed">✓</span>}
+            {p.status === 'archived' && <span style={{ fontSize: '10px', color: '#6c757d' }} title="Archived">⊘</span>}
           </div>
         ))}
 
@@ -1497,6 +1550,13 @@ function App() {
             <form onSubmit={handleSaveProject}>
               <input type="text" placeholder="Project name" value={projectForm.name} onChange={(e) => setProjectForm({ ...projectForm, name: e.target.value })} style={styles.input} required />
               <textarea placeholder="Description (optional)" value={projectForm.description || ''} onChange={(e) => setProjectForm({ ...projectForm, description: e.target.value })} style={styles.textarea} />
+              {editingProject && (
+                <select value={projectForm.status || 'active'} onChange={(e) => setProjectForm({ ...projectForm, status: e.target.value })} style={styles.input}>
+                  <option value="active">Active</option>
+                  <option value="completed">Completed</option>
+                  <option value="archived">Archived</option>
+                </select>
+              )}
               <div style={{ display: 'flex', gap: '10px' }}>
                 <button type="submit" style={{ ...styles.btn, background: '#007bff', color: '#fff' }}>Save</button>
                 <button type="button" onClick={() => setShowProjectModal(false)} style={{ ...styles.btn, background: '#6c757d', color: '#fff' }}>Cancel</button>
@@ -1531,7 +1591,7 @@ function App() {
                   ))}
                 </select>
               </div>
-              <textarea placeholder="Instructions (customize after selecting a template, or write your own)" value={employeeForm.instructions || ''} onChange={(e) => setEmployeeForm({ ...employeeForm, instructions: e.target.value })} style={styles.textarea} />
+              <textarea placeholder="Instructions (use variables: {{user_name}}, {{employee_name}}, {{project_name}}, {{date}}, {{day}})" value={employeeForm.instructions || ''} onChange={(e) => setEmployeeForm({ ...employeeForm, instructions: e.target.value })} style={styles.textarea} />
               <select value={employeeForm.model || 'gpt-4'} onChange={(e) => setEmployeeForm({ ...employeeForm, model: e.target.value })} style={styles.input}>
                 <optgroup label="OpenAI">
                   <option value="gpt-4">GPT-4</option>
@@ -1547,9 +1607,19 @@ function App() {
                   <option value="claude-3-haiku">Claude 3 Haiku (Fast)</option>
                 </optgroup>
               </select>
-              <div style={{ display: 'flex', gap: '10px' }}>
+              <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
                 <button type="submit" style={{ ...styles.btn, background: '#007bff', color: '#fff' }}>Save</button>
                 <button type="button" onClick={() => setShowEmployeeModal(false)} style={{ ...styles.btn, background: '#6c757d', color: '#fff' }}>Cancel</button>
+                <div style={{ flex: 1 }}></div>
+                {editingEmployee && (
+                  <button type="button" onClick={handleExportEmployee} style={{ ...styles.btn, background: '#17a2b8', color: '#fff', fontSize: '12px' }} title="Export configuration">
+                    Export
+                  </button>
+                )}
+                <label style={{ ...styles.btn, background: '#6f42c1', color: '#fff', fontSize: '12px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', margin: 0 }}>
+                  Import
+                  <input type="file" accept=".json" onChange={handleImportEmployee} style={{ display: 'none' }} />
+                </label>
               </div>
             </form>
           </div>
