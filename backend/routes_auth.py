@@ -12,7 +12,7 @@ from auth import (
     create_access_token
 )
 from database import get_db
-from models import User
+from models import User, Employee
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
@@ -70,7 +70,9 @@ async def google_callback(
     result = await db.execute(select(User).where(User.google_id == google_id))
     user = result.scalar_one_or_none()
 
+    is_new_user = False
     if user is None:
+        is_new_user = True
         # Create new user
         user = User(
             email=email,
@@ -81,6 +83,18 @@ async def google_callback(
         db.add(user)
         await db.commit()
         await db.refresh(user)
+
+        # Create default Project Manager for new user
+        default_pm = Employee(
+            owner_id=user.id,
+            name="Project Manager",
+            role="Project Manager",
+            instructions="You are a helpful Project Manager assistant. Help the user plan, organize, and track their projects and tasks.",
+            model="gpt-4",
+            is_default=True
+        )
+        db.add(default_pm)
+        await db.commit()
     else:
         # Update existing user info
         user.name = name
