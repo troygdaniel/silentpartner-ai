@@ -28,6 +28,15 @@
         .message-container { gap: 8px !important; }
         .message-avatar { width: 28px !important; height: 28px !important; font-size: 12px !important; }
       }
+
+      /* Touch-friendly improvements */
+      @media (hover: none) and (pointer: coarse) {
+        /* Larger touch targets on touch devices */
+        button { min-height: 44px !important; min-width: 44px !important; }
+        .sidebar-channel { padding: 12px 15px !important; }
+        .message-actions button { padding: 8px 12px !important; font-size: 14px !important; }
+        input, textarea, select { min-height: 44px !important; font-size: 16px !important; }
+      }
     </style>
   </head>
   <body>

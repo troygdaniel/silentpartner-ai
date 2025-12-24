@@ -19,6 +19,10 @@ class MessageCreate(BaseModel):
     employee_id: Optional[str] = None
 
 
+class MessageUpdate(BaseModel):
+    content: str
+
+
 class MessageResponse(BaseModel):
     id: str
     role: str
@@ -138,6 +142,63 @@ async def save_message(
         "employee_id": str(new_message.employee_id) if new_message.employee_id else None,
         "created_at": new_message.created_at.isoformat() if new_message.created_at else None
     }
+
+
+@router.put("/{message_id}")
+async def update_message(
+    message_id: str,
+    data: MessageUpdate,
+    user: dict = Depends(require_auth),
+    db: AsyncSession = Depends(get_db)
+) -> dict:
+    """Update a message content."""
+    user_id = UUID(user["sub"])
+
+    result = await db.execute(
+        select(Message)
+        .where(Message.id == UUID(message_id), Message.owner_id == user_id)
+    )
+    message = result.scalar_one_or_none()
+
+    if message is None:
+        raise HTTPException(status_code=404, detail="Message not found")
+
+    message.content = data.content
+    await db.commit()
+    await db.refresh(message)
+
+    return {
+        "id": str(message.id),
+        "role": message.role,
+        "content": message.content,
+        "project_id": str(message.project_id) if message.project_id else None,
+        "employee_id": str(message.employee_id) if message.employee_id else None,
+        "created_at": message.created_at.isoformat() if message.created_at else None
+    }
+
+
+@router.delete("/{message_id}")
+async def delete_message(
+    message_id: str,
+    user: dict = Depends(require_auth),
+    db: AsyncSession = Depends(get_db)
+):
+    """Delete a single message."""
+    user_id = UUID(user["sub"])
+
+    result = await db.execute(
+        select(Message)
+        .where(Message.id == UUID(message_id), Message.owner_id == user_id)
+    )
+    message = result.scalar_one_or_none()
+
+    if message is None:
+        raise HTTPException(status_code=404, detail="Message not found")
+
+    await db.delete(message)
+    await db.commit()
+
+    return {"status": "ok"}
 
 
 @router.delete("/project/{project_id}")

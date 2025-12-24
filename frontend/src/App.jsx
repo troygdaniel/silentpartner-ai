@@ -121,6 +121,9 @@ function App() {
   const fileInputRef = useRef(null)
   const [uploadedFiles, setUploadedFiles] = useState([])
   const [uploading, setUploading] = useState(false)
+  const [editingMessage, setEditingMessage] = useState(null)
+  const [editMessageContent, setEditMessageContent] = useState('')
+  const [filePreview, setFilePreview] = useState(null) // { file, content, name }
 
   // Modal state
   const [showProjectModal, setShowProjectModal] = useState(false)
@@ -359,13 +362,63 @@ function App() {
     } catch { showToast('Connection error', 'error') }
   }
 
-  // File upload for DMs
-  const handleFileUpload = async (e) => {
+  // Edit message
+  const handleEditMessage = async (messageId) => {
+    if (!editMessageContent.trim()) return
+    try {
+      const res = await fetch(`/api/messages/${messageId}`, {
+        method: 'PUT',
+        headers: API_HEADERS(),
+        body: JSON.stringify({ content: editMessageContent.trim() })
+      })
+      if (res.ok) {
+        setMessages(messages.map(m => m.id === messageId ? { ...m, content: editMessageContent.trim() } : m))
+        setEditingMessage(null)
+        setEditMessageContent('')
+        showToast('Message updated', 'success')
+      } else {
+        showToast('Failed to update message', 'error')
+      }
+    } catch { showToast('Connection error', 'error') }
+  }
+
+  // Delete message
+  const handleDeleteMessage = async (messageId) => {
+    if (!confirm('Delete this message?')) return
+    try {
+      const res = await fetch(`/api/messages/${messageId}`, {
+        method: 'DELETE',
+        headers: API_HEADERS()
+      })
+      if (res.ok) {
+        setMessages(messages.filter(m => m.id !== messageId))
+        showToast('Message deleted', 'success')
+      } else {
+        showToast('Failed to delete message', 'error')
+      }
+    } catch { showToast('Connection error', 'error') }
+  }
+
+  // File upload for DMs - show preview first
+  const handleFileSelect = async (e) => {
     const file = e.target.files[0]
     if (!file || !activeChannel || activeChannel.type !== 'dm') return
+
+    // Read file content for preview
+    try {
+      const content = await file.text()
+      setFilePreview({ file, content: content.slice(0, 5000), name: file.name, size: file.size })
+    } catch {
+      showToast('Could not preview file', 'error')
+    }
+    if (fileInputRef.current) fileInputRef.current.value = ''
+  }
+
+  const handleFileUpload = async () => {
+    if (!filePreview || !activeChannel || activeChannel.type !== 'dm') return
     setUploading(true)
     const formData = new FormData()
-    formData.append('file', file)
+    formData.append('file', filePreview.file)
     try {
       const res = await fetch(`/api/files/upload/${activeChannel.id}`, {
         method: 'POST',
@@ -375,13 +428,14 @@ function App() {
       if (res.ok) {
         const data = await res.json()
         setUploadedFiles([...uploadedFiles, { id: data.id, filename: data.filename, size: data.size }])
+        showToast('File uploaded', 'success')
       } else {
         const err = await res.json()
-        setChatError(err.detail || 'Upload failed')
+        showToast(err.detail || 'Upload failed', 'error')
       }
-    } catch (err) { setChatError('Upload error') }
+    } catch { showToast('Upload error', 'error') }
     setUploading(false)
-    if (fileInputRef.current) fileInputRef.current.value = ''
+    setFilePreview(null)
   }
 
   const handleDeleteFile = async (fileId) => {
@@ -608,6 +662,7 @@ function App() {
             onClick={() => setActiveChannel({ type: 'project', id: p.id, name: p.name })}
             onContextMenu={(e) => { e.preventDefault(); if (confirm('Delete project?')) handleDeleteProject(p.id) }}
             style={{ ...styles.channel, ...(activeChannel?.type === 'project' && activeChannel?.id === p.id ? styles.channelActive : {}) }}
+            className="sidebar-channel"
           >
             <span style={{ color: '#999' }}>#</span> {p.name}
           </div>
@@ -624,6 +679,7 @@ function App() {
             onClick={() => setActiveChannel({ type: 'dm', id: e.id, name: e.name })}
             onContextMenu={(ev) => { ev.preventDefault(); if (!e.is_default && confirm('Delete employee?')) handleDeleteEmployee(e.id) }}
             style={{ ...styles.channel, ...(activeChannel?.type === 'dm' && activeChannel?.id === e.id ? styles.channelActive : {}), flexDirection: 'column', alignItems: 'flex-start', gap: '2px' }}
+            className="sidebar-channel"
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%' }}>
               <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#2bac76', flexShrink: 0 }}></span>
@@ -889,12 +945,12 @@ function App() {
                 </div>
               )}
               {messages.map((msg, i) => (
-                <div key={i} style={{ marginBottom: '15px', display: 'flex', gap: '10px', position: 'relative' }} className="message-container">
+                <div key={msg.id || i} style={{ marginBottom: '15px', display: 'flex', gap: '10px', position: 'relative' }} className="message-container">
                   <div style={{ width: '36px', height: '36px', borderRadius: '4px', background: msg.role === 'user' ? '#4285f4' : '#2bac76', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: '14px', flexShrink: 0 }}>
                     {msg.role === 'user' ? (user.name?.[0] || 'U') : (msg.employee_id ? getEmployeeName(msg.employee_id)?.[0] : 'A')}
                   </div>
                   <div style={{ flex: 1 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px', flexWrap: 'wrap' }}>
                       <span style={{ fontWeight: 'bold' }}>
                         {msg.role === 'user' ? user.name : (msg.employee_id ? getEmployeeName(msg.employee_id) : 'Assistant')}
                       </span>
@@ -912,10 +968,47 @@ function App() {
                       >
                         Copy
                       </button>
+                      {msg.id && msg.role === 'user' && !isStreaming && (
+                        <>
+                          <button
+                            onClick={() => { setEditingMessage(msg.id); setEditMessageContent(msg.content) }}
+                            style={{ background: 'none', border: 'none', color: '#999', cursor: 'pointer', padding: '2px 6px', fontSize: '12px', opacity: 0.6 }}
+                            title="Edit message"
+                            onMouseEnter={(e) => e.target.style.opacity = 1}
+                            onMouseLeave={(e) => e.target.style.opacity = 0.6}
+                          >
+                            Edit
+                          </button>
+                          <button
+                            onClick={() => handleDeleteMessage(msg.id)}
+                            style={{ background: 'none', border: 'none', color: '#dc3545', cursor: 'pointer', padding: '2px 6px', fontSize: '12px', opacity: 0.6 }}
+                            title="Delete message"
+                            onMouseEnter={(e) => e.target.style.opacity = 1}
+                            onMouseLeave={(e) => e.target.style.opacity = 0.6}
+                          >
+                            Delete
+                          </button>
+                        </>
+                      )}
                     </div>
-                    <div style={{ margin: 0, whiteSpace: 'pre-wrap', fontFamily: 'inherit', lineHeight: 1.5 }}>
-                      {msg.role === 'assistant' ? renderMarkdown(msg.content) : msg.content}
-                    </div>
+                    {editingMessage === msg.id ? (
+                      <div style={{ display: 'flex', gap: '8px', flexDirection: 'column' }}>
+                        <textarea
+                          value={editMessageContent}
+                          onChange={(e) => setEditMessageContent(e.target.value)}
+                          style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '4px', minHeight: '60px', fontSize: '14px', resize: 'vertical' }}
+                          autoFocus
+                        />
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                          <button onClick={() => handleEditMessage(msg.id)} style={{ padding: '6px 12px', background: '#007bff', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '13px' }}>Save</button>
+                          <button onClick={() => { setEditingMessage(null); setEditMessageContent('') }} style={{ padding: '6px 12px', background: '#6c757d', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '13px' }}>Cancel</button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div style={{ margin: 0, whiteSpace: 'pre-wrap', fontFamily: 'inherit', lineHeight: 1.5 }}>
+                        {msg.role === 'assistant' ? renderMarkdown(msg.content) : msg.content}
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}
@@ -942,7 +1035,7 @@ function App() {
               <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }} className="chat-input-area">
                 {activeChannel.type === 'dm' && (
                   <>
-                    <input type="file" ref={fileInputRef} onChange={handleFileUpload} style={{ display: 'none' }} accept=".txt,.md,.json,.csv,.py,.js,.ts,.jsx,.tsx,.html,.css,.xml,.yaml,.yml,.log,.sql" />
+                    <input type="file" ref={fileInputRef} onChange={handleFileSelect} style={{ display: 'none' }} accept=".txt,.md,.json,.csv,.py,.js,.ts,.jsx,.tsx,.html,.css,.xml,.yaml,.yml,.log,.sql" />
                     <button
                       onClick={() => fileInputRef.current?.click()}
                       disabled={isStreaming || uploading || uploadedFiles.length >= 5}
@@ -1120,6 +1213,38 @@ function App() {
                 <button type="button" onClick={() => setShowEmployeeModal(false)} style={{ ...styles.btn, background: '#6c757d', color: '#fff' }}>Cancel</button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* File Preview Modal */}
+      {filePreview && (
+        <div style={styles.modal} onClick={() => setFilePreview(null)}>
+          <div style={{ ...styles.modalContent, maxWidth: '600px', maxHeight: '80vh', display: 'flex', flexDirection: 'column' }} onClick={(e) => e.stopPropagation()}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+              <h3 style={{ margin: 0 }}>File Preview</h3>
+              <button onClick={() => setFilePreview(null)} style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer', color: '#666' }}>×</button>
+            </div>
+            <div style={{ marginBottom: '15px', padding: '10px', background: '#f8f9fa', borderRadius: '6px' }}>
+              <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>{filePreview.name}</div>
+              <div style={{ fontSize: '12px', color: '#666' }}>{(filePreview.size / 1024).toFixed(1)} KB</div>
+            </div>
+            <div style={{ flex: 1, overflow: 'auto', background: '#1e1e1e', borderRadius: '6px', padding: '12px', marginBottom: '15px' }}>
+              <pre style={{ margin: 0, color: '#d4d4d4', fontSize: '12px', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                {filePreview.content}
+                {filePreview.content.length >= 5000 && <span style={{ color: '#888' }}>... (truncated)</span>}
+              </pre>
+            </div>
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button
+                onClick={handleFileUpload}
+                disabled={uploading}
+                style={{ ...styles.btn, background: '#007bff', color: '#fff', flex: 1, opacity: uploading ? 0.6 : 1 }}
+              >
+                {uploading ? 'Uploading...' : 'Upload File'}
+              </button>
+              <button onClick={() => setFilePreview(null)} style={{ ...styles.btn, background: '#6c757d', color: '#fff' }}>Cancel</button>
+            </div>
           </div>
         </div>
       )}
