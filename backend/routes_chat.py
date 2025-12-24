@@ -166,7 +166,7 @@ async def chat(
                 file_section += f"\n### {f.filename}\n```\n{f.content}\n```\n"
             system_prompt = system_prompt + file_section if system_prompt else file_section.strip()
     else:
-        files = get_files_for_context(user["sub"], request.employee_id)
+        files = await get_files_for_context(db, user_id, employee.id)
         if files:
             file_section = "\n\n## Uploaded Files:\n"
             for f in files:

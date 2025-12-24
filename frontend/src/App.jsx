@@ -178,10 +178,22 @@ function App() {
 
   useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages])
 
+  // Fetch DM files from server
+  const fetchDMFiles = async (employeeId) => {
+    try {
+      const res = await fetch(`/api/files/${employeeId}`, { headers: API_HEADERS() })
+      if (res.ok) setUploadedFiles(await res.json())
+    } catch (err) { console.error('Failed to fetch files:', err) }
+  }
+
   useEffect(() => {
     if (activeChannel) {
       fetchMessages(activeChannel)
-      setUploadedFiles([])
+      if (activeChannel.type === 'dm') {
+        fetchDMFiles(activeChannel.id)
+      } else {
+        setUploadedFiles([])
+      }
       setChatError(null)
       setShowSettings(false)
     }
@@ -297,6 +309,36 @@ function App() {
       await navigator.clipboard.writeText(content)
       showToast('Copied to clipboard', 'success')
     } catch { showToast('Failed to copy', 'error') }
+  }
+
+  // Delete memory
+  const handleDeleteMemory = async (id) => {
+    try {
+      const res = await fetch(`/api/memories/${id}`, { method: 'DELETE', headers: API_HEADERS() })
+      if (res.ok) {
+        fetchMemories()
+        showToast('Memory deleted', 'success')
+      } else {
+        showToast('Failed to delete memory', 'error')
+      }
+    } catch { showToast('Connection error', 'error') }
+  }
+
+  // Clear chat history
+  const handleClearChat = async () => {
+    if (!activeChannel || !confirm('Clear all messages in this conversation?')) return
+    try {
+      const endpoint = activeChannel.type === 'project'
+        ? `/api/messages/project/${activeChannel.id}`
+        : `/api/messages/dm/${activeChannel.id}`
+      const res = await fetch(endpoint, { method: 'DELETE', headers: API_HEADERS() })
+      if (res.ok) {
+        setMessages([])
+        showToast('Chat history cleared', 'success')
+      } else {
+        showToast('Failed to clear chat', 'error')
+      }
+    } catch { showToast('Connection error', 'error') }
   }
 
   // File upload for DMs
@@ -740,7 +782,16 @@ function App() {
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                     {memories.map(m => (
                       <div key={m.id} style={{ background: '#fff', border: '1px solid #e0e0e0', borderRadius: '8px', padding: '16px' }}>
-                        <p style={{ margin: 0, color: '#333', lineHeight: 1.5 }}>{m.content}</p>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                          <p style={{ margin: 0, color: '#333', lineHeight: 1.5, flex: 1 }}>{m.content}</p>
+                          <button
+                            onClick={() => handleDeleteMemory(m.id)}
+                            style={{ background: 'none', border: 'none', color: '#999', cursor: 'pointer', padding: '4px 8px', fontSize: '14px' }}
+                            title="Delete memory"
+                          >
+                            ×
+                          </button>
+                        </div>
                         <div style={{ marginTop: '10px', display: 'flex', alignItems: 'center', gap: '8px' }}>
                           <span style={{
                             fontSize: '11px',
@@ -766,22 +817,29 @@ function App() {
                 <strong>{activeChannel.type === 'project' ? '#' : ''}{activeChannel.name}</strong>
                 {activeChannel.type === 'project' && <span style={{ color: '#999', marginLeft: '10px', fontSize: '14px' }}>Use @name to mention an employee</span>}
               </div>
-              {activeChannel.type === 'dm' && (
-                <button
-                  onClick={() => { setEditingEmployee(employees.find(e => e.id === activeChannel.id)); setEmployeeForm(employees.find(e => e.id === activeChannel.id) || {}); setShowEmployeeModal(true) }}
-                  style={{ ...styles.btn, background: '#6c757d', color: '#fff' }}
-                >
-                  Edit Employee
-                </button>
-              )}
-              {activeChannel.type === 'project' && (
-                <button
-                  onClick={() => { setEditingProject(projects.find(p => p.id === activeChannel.id)); setProjectForm(projects.find(p => p.id === activeChannel.id) || {}); setShowProjectModal(true) }}
-                  style={{ ...styles.btn, background: '#6c757d', color: '#fff' }}
-                >
-                  Edit Project
-                </button>
-              )}
+              <div style={{ display: 'flex', gap: '8px' }}>
+                {messages.length > 0 && (
+                  <button onClick={handleClearChat} style={{ ...styles.btn, background: '#dc3545', color: '#fff' }}>
+                    Clear Chat
+                  </button>
+                )}
+                {activeChannel.type === 'dm' && (
+                  <button
+                    onClick={() => { setEditingEmployee(employees.find(e => e.id === activeChannel.id)); setEmployeeForm(employees.find(e => e.id === activeChannel.id) || {}); setShowEmployeeModal(true) }}
+                    style={{ ...styles.btn, background: '#6c757d', color: '#fff' }}
+                  >
+                    Edit Employee
+                  </button>
+                )}
+                {activeChannel.type === 'project' && (
+                  <button
+                    onClick={() => { setEditingProject(projects.find(p => p.id === activeChannel.id)); setProjectForm(projects.find(p => p.id === activeChannel.id) || {}); setShowProjectModal(true) }}
+                    style={{ ...styles.btn, background: '#6c757d', color: '#fff' }}
+                  >
+                    Edit Project
+                  </button>
+                )}
+              </div>
             </div>
 
             <div style={styles.messages}>

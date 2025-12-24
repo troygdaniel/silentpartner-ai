@@ -125,3 +125,18 @@ async def run_migrations():
             """))
             await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_project_files_project_id ON project_files(project_id)"))
             await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_project_files_owner_id ON project_files(owner_id)"))
+
+            # Create dm_files table for persistent DM file storage
+            await conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS dm_files (
+                    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                    employee_id UUID NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+                    owner_id UUID NOT NULL REFERENCES users(id),
+                    filename VARCHAR NOT NULL,
+                    content TEXT NOT NULL,
+                    size INTEGER NOT NULL,
+                    created_at TIMESTAMP DEFAULT NOW()
+                )
+            """))
+            await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_dm_files_employee_id ON dm_files(employee_id)"))
+            await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_dm_files_owner_id ON dm_files(owner_id)"))
