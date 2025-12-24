@@ -5,7 +5,7 @@ from fastapi.responses import FileResponse
 from sqlalchemy import text
 import os
 
-from database import get_engine, init_db
+from database import get_engine, init_db, run_migrations
 from routes_auth import router as auth_router
 from routes_employees import router as employees_router
 from routes_settings import router as settings_router
@@ -17,8 +17,9 @@ import models  # noqa: F401 - Import to register models with Base
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup: create tables
+    # Startup: create tables and run migrations
     await init_db()
+    await run_migrations()
     yield
     # Shutdown: nothing to do
 

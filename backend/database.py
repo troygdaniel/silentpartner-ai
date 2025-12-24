@@ -45,3 +45,36 @@ async def init_db():
     if engine:
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
+
+
+async def run_migrations():
+    """Run manual migrations for columns that create_all doesn't add."""
+    from sqlalchemy import text
+    engine = get_engine()
+    if engine:
+        async with engine.begin() as conn:
+            # Add columns if they don't exist (Increment 6)
+            await conn.execute(text("""
+                DO $$
+                BEGIN
+                    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='openai_api_key') THEN
+                        ALTER TABLE users ADD COLUMN openai_api_key VARCHAR;
+                    END IF;
+                    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='anthropic_api_key') THEN
+                        ALTER TABLE users ADD COLUMN anthropic_api_key VARCHAR;
+                    END IF;
+                END $$;
+            """))
+            # Create memories table if it doesn't exist (Increment 7)
+            await conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS memories (
+                    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                    owner_id UUID NOT NULL REFERENCES users(id),
+                    employee_id UUID REFERENCES employees(id),
+                    content TEXT NOT NULL,
+                    created_at TIMESTAMP DEFAULT NOW(),
+                    updated_at TIMESTAMP DEFAULT NOW()
+                );
+                CREATE INDEX IF NOT EXISTS ix_memories_owner_id ON memories(owner_id);
+                CREATE INDEX IF NOT EXISTS ix_memories_employee_id ON memories(employee_id);
+            """))
