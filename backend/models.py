@@ -22,6 +22,7 @@ class User(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     employees = relationship("Employee", back_populates="owner", cascade="all, delete-orphan")
+    shared_memories = relationship("Memory", back_populates="owner", cascade="all, delete-orphan")
 
 
 class Employee(Base):
@@ -38,3 +39,18 @@ class Employee(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     owner = relationship("User", back_populates="employees")
+    memories = relationship("Memory", back_populates="employee", cascade="all, delete-orphan")
+
+
+class Memory(Base):
+    __tablename__ = "memories"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    owner_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True)
+    employee_id = Column(UUID(as_uuid=True), ForeignKey("employees.id"), nullable=True, index=True)  # NULL = shared
+    content = Column(Text, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    owner = relationship("User", back_populates="shared_memories")
+    employee = relationship("Employee", back_populates="memories")

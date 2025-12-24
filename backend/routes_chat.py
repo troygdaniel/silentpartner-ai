@@ -11,6 +11,7 @@ from auth import require_auth
 from database import get_db
 from models import User, Employee
 from crypto import decrypt_api_key
+from routes_memory import get_memories_for_employee
 
 router = APIRouter(prefix="/api/chat", tags=["chat"])
 
@@ -140,14 +141,22 @@ async def chat(
     # Build messages for API
     api_messages = [{"role": m.role, "content": m.content} for m in request.messages]
 
+    # Get memories and build system prompt
+    memories = await get_memories_for_employee(db, user_id, employee.id)
+    system_prompt = employee.instructions or ""
+
+    if memories:
+        memory_section = "\n\n## Important Information to Remember:\n" + "\n".join(f"- {m}" for m in memories)
+        system_prompt = system_prompt + memory_section if system_prompt else memory_section.strip()
+
     # Stream response
     if provider == "openai":
         return StreamingResponse(
-            stream_openai_response(api_key, employee.model, employee.instructions or "", api_messages),
+            stream_openai_response(api_key, employee.model, system_prompt, api_messages),
             media_type="text/event-stream"
         )
     else:
         return StreamingResponse(
-            stream_anthropic_response(api_key, employee.model, employee.instructions or "", api_messages),
+            stream_anthropic_response(api_key, employee.model, system_prompt, api_messages),
             media_type="text/event-stream"
         )

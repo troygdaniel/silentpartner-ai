@@ -10,7 +10,7 @@ function App() {
   const [user, setUser] = useState(null)
   const [employees, setEmployees] = useState([])
   const [loading, setLoading] = useState(true)
-  const [view, setView] = useState('employees') // 'employees', 'settings', 'chat'
+  const [view, setView] = useState('employees') // 'employees', 'settings', 'memories', 'chat'
   const [showAddForm, setShowAddForm] = useState(false)
   const [editingEmployee, setEditingEmployee] = useState(null)
   const [formData, setFormData] = useState({ name: '', role: '', instructions: '', model: 'gpt-4' })
@@ -27,6 +27,12 @@ function App() {
   const [isStreaming, setIsStreaming] = useState(false)
   const [chatError, setChatError] = useState(null)
   const messagesEndRef = useRef(null)
+
+  // Memory state
+  const [memories, setMemories] = useState([])
+  const [memoryForm, setMemoryForm] = useState({ content: '', employee_id: '' })
+  const [showMemoryForm, setShowMemoryForm] = useState(false)
+  const [editingMemory, setEditingMemory] = useState(null)
 
   const fetchEmployees = async () => {
     try {
@@ -52,6 +58,18 @@ function App() {
     }
   }
 
+  const fetchMemories = async () => {
+    try {
+      const res = await fetch('/api/memories/all', { headers: API_HEADERS() })
+      if (res.ok) {
+        const data = await res.json()
+        setMemories(data)
+      }
+    } catch (err) {
+      console.error('Failed to fetch memories:', err)
+    }
+  }
+
   useEffect(() => {
     const token = localStorage.getItem('token')
     fetch('/api/auth/status')
@@ -71,6 +89,7 @@ function App() {
           if (data) {
             fetchEmployees()
             fetchApiKeys()
+            fetchMemories()
           }
           setLoading(false)
         })
@@ -88,7 +107,7 @@ function App() {
   }, [messages])
 
   const handleLogin = () => { window.location.href = '/api/auth/google' }
-  const handleLogout = () => { localStorage.removeItem('token'); setUser(null); setEmployees([]) }
+  const handleLogout = () => { localStorage.removeItem('token'); setUser(null); setEmployees([]); setMemories([]) }
 
   const handleAddEmployee = async (e) => {
     e.preventDefault()
@@ -136,6 +155,40 @@ function App() {
       const data = await res.json()
       setApiKeys({ has_openai_key: data.has_openai_key, has_anthropic_key: data.has_anthropic_key })
     }
+  }
+
+  const handleAddMemory = async (e) => {
+    e.preventDefault()
+    const body = { content: memoryForm.content }
+    if (memoryForm.employee_id) body.employee_id = memoryForm.employee_id
+    const res = await fetch('/api/memories', { method: 'POST', headers: API_HEADERS(), body: JSON.stringify(body) })
+    if (res.ok) {
+      setShowMemoryForm(false)
+      setMemoryForm({ content: '', employee_id: '' })
+      fetchMemories()
+    }
+  }
+
+  const handleUpdateMemory = async (e) => {
+    e.preventDefault()
+    const res = await fetch(`/api/memories/${editingMemory.id}`, { method: 'PUT', headers: API_HEADERS(), body: JSON.stringify({ content: memoryForm.content }) })
+    if (res.ok) {
+      setEditingMemory(null)
+      setMemoryForm({ content: '', employee_id: '' })
+      fetchMemories()
+    }
+  }
+
+  const handleDeleteMemory = async (id) => {
+    if (!confirm('Delete this memory?')) return
+    const res = await fetch(`/api/memories/${id}`, { method: 'DELETE', headers: API_HEADERS() })
+    if (res.ok) fetchMemories()
+  }
+
+  const startEditMemory = (mem) => {
+    setEditingMemory(mem)
+    setMemoryForm({ content: mem.content, employee_id: mem.employee_id || '' })
+    setShowMemoryForm(false)
   }
 
   const startChat = (emp) => {
@@ -290,6 +343,7 @@ function App() {
               </div>
               <div>
                 <button onClick={() => setView('settings')} style={{ ...styles.btn, backgroundColor: view === 'settings' ? '#007bff' : '#6c757d', color: 'white' }}>Settings</button>
+                <button onClick={() => setView('memories')} style={{ ...styles.btn, backgroundColor: view === 'memories' ? '#007bff' : '#6c757d', color: 'white' }}>Memories</button>
                 <button onClick={() => setView('employees')} style={{ ...styles.btn, backgroundColor: view === 'employees' ? '#007bff' : '#6c757d', color: 'white' }}>Employees</button>
                 <button onClick={handleLogout} style={{ ...styles.btn, backgroundColor: '#dc3545', color: 'white', marginRight: 0 }}>Sign out</button>
               </div>
@@ -324,6 +378,80 @@ function App() {
                   </button>
                 )}
               </div>
+            )}
+
+            {view === 'memories' && (
+              <>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+                  <h2 style={{ margin: 0 }}>Memories</h2>
+                  {!showMemoryForm && !editingMemory && (
+                    <button onClick={() => setShowMemoryForm(true)} style={{ ...styles.btn, backgroundColor: '#28a745', color: 'white' }}>+ Add Memory</button>
+                  )}
+                </div>
+
+                <p style={{ color: '#666', fontSize: '14px', marginBottom: '20px' }}>
+                  Memories are facts your AI employees will remember. Shared memories apply to all employees. Role-specific memories only apply to one employee.
+                </p>
+
+                {(showMemoryForm || editingMemory) && (
+                  <div style={styles.card}>
+                    <h3 style={{ marginTop: 0 }}>{editingMemory ? 'Edit Memory' : 'Add New Memory'}</h3>
+                    <form onSubmit={editingMemory ? handleUpdateMemory : handleAddMemory}>
+                      <textarea
+                        placeholder="What should your employees remember? (e.g., 'Our company name is Acme Corp', 'We use React and Python')"
+                        value={memoryForm.content}
+                        onChange={(e) => setMemoryForm({ ...memoryForm, content: e.target.value })}
+                        style={styles.textarea}
+                        required
+                      />
+                      {!editingMemory && (
+                        <select
+                          value={memoryForm.employee_id}
+                          onChange={(e) => setMemoryForm({ ...memoryForm, employee_id: e.target.value })}
+                          style={styles.input}
+                        >
+                          <option value="">Shared (all employees)</option>
+                          {employees.map(emp => (
+                            <option key={emp.id} value={emp.id}>{emp.name} only</option>
+                          ))}
+                        </select>
+                      )}
+                      <button type="submit" style={{ ...styles.btn, backgroundColor: '#007bff', color: 'white' }}>{editingMemory ? 'Save' : 'Create'}</button>
+                      <button type="button" onClick={() => { setShowMemoryForm(false); setEditingMemory(null); setMemoryForm({ content: '', employee_id: '' }) }} style={{ ...styles.btn, backgroundColor: '#6c757d', color: 'white' }}>Cancel</button>
+                    </form>
+                  </div>
+                )}
+
+                <div>
+                  {memories.length === 0 && !showMemoryForm && (
+                    <div style={{ ...styles.card, textAlign: 'center', color: '#999' }}>
+                      <p>No memories yet. Add some facts for your AI employees to remember.</p>
+                    </div>
+                  )}
+                  {memories.map(mem => (
+                    <div key={mem.id} style={styles.card}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                        <div style={{ flex: 1 }}>
+                          <p style={{ margin: '0 0 10px 0' }}>{mem.content}</p>
+                          <span style={{
+                            fontSize: '12px',
+                            padding: '2px 8px',
+                            borderRadius: '10px',
+                            backgroundColor: mem.employee_id ? '#e3f2fd' : '#e8f5e9',
+                            color: mem.employee_id ? '#1976d2' : '#388e3c'
+                          }}>
+                            {mem.employee_id ? `${mem.employee_name} only` : 'Shared'}
+                          </span>
+                        </div>
+                        <div>
+                          <button onClick={() => startEditMemory(mem)} style={{ ...styles.btn, backgroundColor: '#ffc107', color: '#333', padding: '5px 10px', fontSize: '12px' }}>Edit</button>
+                          <button onClick={() => handleDeleteMemory(mem.id)} style={{ ...styles.btn, backgroundColor: '#dc3545', color: 'white', padding: '5px 10px', fontSize: '12px', marginRight: 0 }}>Delete</button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </>
             )}
 
             {view === 'employees' && (
