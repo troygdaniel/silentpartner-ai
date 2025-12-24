@@ -24,7 +24,7 @@ This roadmap outlines planned features and improvements, organized into iterativ
 ### 1.1 Error Handling & Feedback
 - [x] Toast notifications for success/error states ✅
 - [x] Better error messages when API keys are invalid ✅
-- [ ] Retry logic for failed API calls
+- [x] Retry logic for failed API calls ✅
 - [x] Loading states for all async operations ✅
 
 ### 1.2 Chat Improvements
@@ -39,12 +39,12 @@ This roadmap outlines planned features and improvements, organized into iterativ
 - [x] Persist DM file uploads (currently session-only) ✅
 - [ ] File preview before upload
 - [ ] Support larger files with chunking
-- [ ] Download uploaded files
+- [x] Download uploaded files ✅
 
 ### 1.4 Mobile Responsiveness
 - [x] Collapsible sidebar on mobile ✅
 - [ ] Touch-friendly interactions
-- [ ] Responsive chat input area
+- [x] Responsive chat input area ✅
 
 ---
 
