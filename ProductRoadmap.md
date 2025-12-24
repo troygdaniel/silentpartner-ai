@@ -17,7 +17,7 @@ This roadmap outlines planned features and improvements, organized into iterativ
 
 ---
 
-## Phase 1: Polish & Reliability ✅ (In Progress)
+## Phase 1: Polish & Reliability ✅ (Complete)
 
 **Goal:** Improve stability and user experience for existing features.
 
@@ -29,7 +29,7 @@ This roadmap outlines planned features and improvements, organized into iterativ
 
 ### 1.2 Chat Improvements
 - [x] Message timestamps displayed in UI ✅
-- [ ] Edit/delete individual messages
+- [x] Edit/delete individual messages ✅
 - [x] Copy message to clipboard button ✅
 - [x] Markdown rendering for AI responses ✅
 - [x] Code syntax highlighting in responses ✅
@@ -37,13 +37,13 @@ This roadmap outlines planned features and improvements, organized into iterativ
 
 ### 1.3 File Handling
 - [x] Persist DM file uploads (currently session-only) ✅
-- [ ] File preview before upload
+- [x] File preview before upload ✅
 - [ ] Support larger files with chunking
 - [x] Download uploaded files ✅
 
 ### 1.4 Mobile Responsiveness
 - [x] Collapsible sidebar on mobile ✅
-- [ ] Touch-friendly interactions
+- [x] Touch-friendly interactions ✅
 - [x] Responsive chat input area ✅
 
 ---
