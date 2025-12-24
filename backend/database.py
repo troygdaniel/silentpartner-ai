@@ -37,3 +37,11 @@ async def get_db():
         raise Exception("Database not configured")
     async with session_maker() as session:
         yield session
+
+
+async def init_db():
+    """Create all tables."""
+    engine = get_engine()
+    if engine:
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)

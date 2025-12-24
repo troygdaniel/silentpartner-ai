@@ -1,13 +1,24 @@
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from sqlalchemy import text
 import os
 
-from database import get_engine
+from database import get_engine, init_db
 from routes_auth import router as auth_router
+import models  # noqa: F401 - Import to register models with Base
 
-app = FastAPI()
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup: create tables
+    await init_db()
+    yield
+    # Shutdown: nothing to do
+
+
+app = FastAPI(lifespan=lifespan)
 
 # Register routers
 app.include_router(auth_router)

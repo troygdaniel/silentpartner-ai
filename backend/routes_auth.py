@@ -1,12 +1,18 @@
 from fastapi import APIRouter, Depends
-from fastapi.responses import RedirectResponse
+from fastapi.responses import RedirectResponse, HTMLResponse
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 
 from auth import (
     is_oauth_configured,
     get_google_auth_url,
     get_current_user,
-    require_auth
+    require_auth,
+    exchange_google_code,
+    create_access_token
 )
+from database import get_db
+from models import User
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
@@ -28,23 +34,83 @@ async def google_login():
 
 
 @router.get("/callback")
-async def google_callback(code: str = "", error: str = ""):
-    """
-    Handle Google OAuth callback.
-    Scaffold only - actual token exchange implemented in Increment 4.
-    """
+async def google_callback(
+    code: str = "",
+    error: str = "",
+    db: AsyncSession = Depends(get_db)
+):
+    """Handle Google OAuth callback - exchange code and create/update user."""
     if error:
-        return {"status": "error", "message": error}
+        return HTMLResponse(content=f"""
+            <html><body>
+            <h1>Authentication Error</h1>
+            <p>{error}</p>
+            <a href="/">Return to home</a>
+            </body></html>
+        """, status_code=400)
 
     if not code:
-        return {"status": "error", "message": "No authorization code received"}
+        return HTMLResponse(content="""
+            <html><body>
+            <h1>Authentication Error</h1>
+            <p>No authorization code received</p>
+            <a href="/">Return to home</a>
+            </body></html>
+        """, status_code=400)
 
-    # Scaffold response - real implementation in Increment 4
-    return {
-        "status": "scaffold",
-        "message": "OAuth callback received. Token exchange not yet implemented.",
-        "code_received": bool(code)
-    }
+    # Exchange code for user info
+    google_user = await exchange_google_code(code)
+
+    google_id = google_user.get("id")
+    email = google_user.get("email")
+    name = google_user.get("name")
+    picture = google_user.get("picture")
+
+    # Find or create user
+    result = await db.execute(select(User).where(User.google_id == google_id))
+    user = result.scalar_one_or_none()
+
+    if user is None:
+        # Create new user
+        user = User(
+            email=email,
+            name=name,
+            picture=picture,
+            google_id=google_id
+        )
+        db.add(user)
+        await db.commit()
+        await db.refresh(user)
+    else:
+        # Update existing user info
+        user.name = name
+        user.picture = picture
+        user.email = email
+        await db.commit()
+
+    # Create JWT token
+    token = create_access_token({
+        "sub": str(user.id),
+        "email": user.email,
+        "name": user.name
+    })
+
+    # Return HTML that stores token and redirects
+    return HTMLResponse(content=f"""
+        <html>
+        <head><title>Logging in...</title></head>
+        <body>
+        <script>
+            localStorage.setItem('token', '{token}');
+            window.location.href = '/';
+        </script>
+        <noscript>
+            <p>Login successful! Token: {token}</p>
+            <a href="/">Continue to app</a>
+        </noscript>
+        </body>
+        </html>
+    """)
 
 
 @router.get("/me")
