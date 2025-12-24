@@ -27,6 +27,9 @@ function App() {
   const [isStreaming, setIsStreaming] = useState(false)
   const [chatError, setChatError] = useState(null)
   const messagesEndRef = useRef(null)
+  const fileInputRef = useRef(null)
+  const [uploadedFiles, setUploadedFiles] = useState([])
+  const [uploading, setUploading] = useState(false)
 
   // Memory state
   const [memories, setMemories] = useState([])
@@ -191,11 +194,65 @@ function App() {
     setShowMemoryForm(false)
   }
 
-  const startChat = (emp) => {
+  const startChat = async (emp) => {
     setSelectedEmployee(emp)
     setMessages([])
     setChatError(null)
+    setUploadedFiles([])
     setView('chat')
+    // Fetch any existing files for this employee
+    try {
+      const res = await fetch(`/api/files/${emp.id}`, { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } })
+      if (res.ok) {
+        const files = await res.json()
+        setUploadedFiles(files)
+      }
+    } catch (err) {
+      console.error('Failed to fetch files:', err)
+    }
+  }
+
+  const handleFileUpload = async (e) => {
+    const file = e.target.files[0]
+    if (!file || !selectedEmployee) return
+
+    setUploading(true)
+    const formData = new FormData()
+    formData.append('file', file)
+
+    try {
+      const res = await fetch(`/api/files/upload/${selectedEmployee.id}`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
+        body: formData
+      })
+      if (res.ok) {
+        const data = await res.json()
+        setUploadedFiles([...uploadedFiles, { id: data.id, filename: data.filename, size: data.size }])
+      } else {
+        const err = await res.json()
+        setChatError(err.detail || 'Upload failed')
+      }
+    } catch (err) {
+      setChatError('Upload error')
+    }
+    setUploading(false)
+    if (fileInputRef.current) fileInputRef.current.value = ''
+  }
+
+  const handleDeleteFile = async (fileId) => {
+    if (!selectedEmployee) return
+    try {
+      const res = await fetch(`/api/files/${selectedEmployee.id}/${fileId}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+      })
+      if (res.ok) {
+        setUploadedFiles(uploadedFiles.filter(f => f.id !== fileId))
+      }
+    } catch (err) {
+      console.error('Failed to delete file:', err)
+    }
   }
 
   const sendMessage = async () => {
@@ -307,7 +364,32 @@ function App() {
         </div>
 
         <div style={{ padding: '15px', background: 'white', borderTop: '1px solid #ddd' }}>
+          {uploadedFiles.length > 0 && (
+            <div style={{ maxWidth: '800px', margin: '0 auto 10px', display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+              {uploadedFiles.map(f => (
+                <div key={f.id} style={{ display: 'flex', alignItems: 'center', background: '#e3f2fd', padding: '4px 10px', borderRadius: '15px', fontSize: '12px' }}>
+                  <span style={{ marginRight: '8px' }}>{f.filename}</span>
+                  <button onClick={() => handleDeleteFile(f.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#666', padding: '0', fontSize: '14px' }}>×</button>
+                </div>
+              ))}
+            </div>
+          )}
           <div style={{ display: 'flex', gap: '10px', maxWidth: '800px', margin: '0 auto' }}>
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleFileUpload}
+              style={{ display: 'none' }}
+              accept=".txt,.md,.json,.csv,.py,.js,.ts,.jsx,.tsx,.html,.css,.xml,.yaml,.yml,.log,.sql"
+            />
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isStreaming || uploading || uploadedFiles.length >= 5}
+              style={{ ...styles.btn, backgroundColor: '#6c757d', color: 'white', padding: '12px', opacity: (isStreaming || uploading || uploadedFiles.length >= 5) ? 0.6 : 1 }}
+              title="Upload file (max 100KB, text files only)"
+            >
+              {uploading ? '...' : '+'}
+            </button>
             <input
               type="text"
               value={chatInput}
@@ -321,6 +403,9 @@ function App() {
               {isStreaming ? 'Sending...' : 'Send'}
             </button>
           </div>
+          <p style={{ textAlign: 'center', color: '#999', fontSize: '11px', margin: '8px 0 0' }}>
+            {uploadedFiles.length}/5 files • Text files only (max 100KB each)
+          </p>
         </div>
       </div>
     )

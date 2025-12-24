@@ -12,6 +12,7 @@ from database import get_db
 from models import User, Employee
 from crypto import decrypt_api_key
 from routes_memory import get_memories_for_employee
+from routes_files import get_files_for_context
 
 router = APIRouter(prefix="/api/chat", tags=["chat"])
 
@@ -148,6 +149,14 @@ async def chat(
     if memories:
         memory_section = "\n\n## Important Information to Remember:\n" + "\n".join(f"- {m}" for m in memories)
         system_prompt = system_prompt + memory_section if system_prompt else memory_section.strip()
+
+    # Get uploaded files and add to context
+    files = get_files_for_context(user["sub"], request.employee_id)
+    if files:
+        file_section = "\n\n## Uploaded Files:\n"
+        for f in files:
+            file_section += f"\n### {f['filename']}\n```\n{f['content']}\n```\n"
+        system_prompt = system_prompt + file_section if system_prompt else file_section.strip()
 
     # Stream response
     if provider == "openai":
