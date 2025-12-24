@@ -11,7 +11,7 @@ This roadmap outlines planned features and improvements, organized into iterativ
 - Direct messages with individual employees
 - Persistent chat history
 - Memory system (shared, employee-specific, project-specific)
-- File uploads (session-based DMs, persistent for projects)
+- File uploads (persistent for both DMs and projects)
 - Multi-provider support (OpenAI + Anthropic)
 - BYOK (Bring Your Own Keys) model
 
@@ -33,9 +33,10 @@ This roadmap outlines planned features and improvements, organized into iterativ
 - [x] Copy message to clipboard button ✅
 - [x] Markdown rendering for AI responses ✅
 - [x] Code syntax highlighting in responses ✅
+- [x] Clear chat history button ✅
 
 ### 1.3 File Handling
-- [ ] Persist DM file uploads (currently session-only)
+- [x] Persist DM file uploads (currently session-only) ✅
 - [ ] File preview before upload
 - [ ] Support larger files with chunking
 - [ ] Download uploaded files
@@ -71,6 +72,7 @@ This roadmap outlines planned features and improvements, organized into iterativ
 
 ### 2.4 Memory Enhancements
 - [ ] Manual memory creation from UI
+- [x] Delete individual memories from UI ✅
 - [ ] Memory categories/tags
 - [ ] Memory search
 - [ ] Bulk memory import/export
