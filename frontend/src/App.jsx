@@ -414,50 +414,193 @@ function App() {
       {/* Main Content */}
       <div style={styles.main}>
         {showSettings ? (
-          <div style={{ padding: '30px', maxWidth: '600px' }}>
-            <h2>Settings</h2>
+          <div style={{ flex: 1, overflow: 'auto', padding: '40px' }}>
+            <div style={{ maxWidth: '700px', margin: '0 auto' }}>
+              <h1 style={{ color: '#333', marginBottom: '8px' }}>Settings</h1>
+              <p style={{ color: '#666', marginBottom: '40px' }}>Configure your AI team's capabilities.</p>
 
-            <h3>API Keys</h3>
-            <p style={{ color: '#666', fontSize: '14px' }}>Add your API keys to use AI employees.</p>
+              {/* API Keys Section */}
+              <div style={{ marginBottom: '50px' }}>
+                <h2 style={{ color: '#333', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  API Keys
+                  {(apiKeys.has_openai_key || apiKeys.has_anthropic_key) && (
+                    <span style={{ fontSize: '12px', padding: '4px 10px', background: '#d4edda', color: '#155724', borderRadius: '12px' }}>
+                      {apiKeys.has_openai_key && apiKeys.has_anthropic_key ? '2 configured' : '1 configured'}
+                    </span>
+                  )}
+                </h2>
+                <p style={{ color: '#666', fontSize: '14px', marginBottom: '24px', lineHeight: 1.6 }}>
+                  Your API keys are encrypted and stored securely. You only need to add keys for the AI models you want to use.
+                </p>
 
-            <div style={{ marginTop: '20px' }}>
-              <h4>OpenAI API Key {apiKeys.has_openai_key && <span style={{ color: 'green' }}>Configured</span>}</h4>
-              {apiKeys.has_openai_key ? (
-                <button onClick={() => removeApiKey('openai')} style={{ ...styles.btn, background: '#dc3545', color: '#fff' }}>Remove</button>
-              ) : (
-                <input type="password" placeholder="sk-..." value={keyInputs.openai} onChange={(e) => setKeyInputs({ ...keyInputs, openai: e.target.value })} style={styles.input} />
-              )}
-            </div>
+                {/* OpenAI Card */}
+                <div style={{ background: '#fff', border: '1px solid #e0e0e0', borderRadius: '12px', padding: '24px', marginBottom: '16px' }}>
+                  <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '16px' }}>
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '4px' }}>
+                        <h3 style={{ margin: 0, color: '#333' }}>OpenAI</h3>
+                        {apiKeys.has_openai_key && (
+                          <span style={{ fontSize: '11px', padding: '2px 8px', background: '#d4edda', color: '#155724', borderRadius: '10px' }}>Connected</span>
+                        )}
+                      </div>
+                      <p style={{ margin: 0, color: '#666', fontSize: '13px' }}>Powers GPT-4, GPT-4 Turbo, and GPT-3.5 models</p>
+                    </div>
+                    <div style={{ width: '40px', height: '40px', background: '#000', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <span style={{ color: '#fff', fontSize: '18px', fontWeight: 'bold' }}>AI</span>
+                    </div>
+                  </div>
 
-            <div style={{ marginTop: '20px' }}>
-              <h4>Anthropic API Key {apiKeys.has_anthropic_key && <span style={{ color: 'green' }}>Configured</span>}</h4>
-              {apiKeys.has_anthropic_key ? (
-                <button onClick={() => removeApiKey('anthropic')} style={{ ...styles.btn, background: '#dc3545', color: '#fff' }}>Remove</button>
-              ) : (
-                <input type="password" placeholder="sk-ant-..." value={keyInputs.anthropic} onChange={(e) => setKeyInputs({ ...keyInputs, anthropic: e.target.value })} style={styles.input} />
-              )}
-            </div>
-
-            {(keyInputs.openai || keyInputs.anthropic) && (
-              <button onClick={saveApiKeys} disabled={savingKeys} style={{ ...styles.btn, background: '#28a745', color: '#fff', marginTop: '15px' }}>
-                {savingKeys ? 'Saving...' : 'Save Keys'}
-              </button>
-            )}
-
-            <h3 style={{ marginTop: '40px' }}>Memories</h3>
-            <p style={{ color: '#666', fontSize: '14px' }}>Facts your AI employees will remember.</p>
-            {memories.length === 0 ? (
-              <p style={{ color: '#999' }}>No memories yet.</p>
-            ) : (
-              memories.map(m => (
-                <div key={m.id} style={{ padding: '10px', background: '#f5f5f5', borderRadius: '4px', marginTop: '10px' }}>
-                  <p style={{ margin: 0 }}>{m.content}</p>
-                  <span style={{ fontSize: '12px', color: '#999' }}>
-                    {m.project_name ? `Project: ${m.project_name}` : m.employee_name ? `Employee: ${m.employee_name}` : 'Shared'}
-                  </span>
+                  {apiKeys.has_openai_key ? (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      <div style={{ flex: 1, padding: '10px 14px', background: '#f8f9fa', borderRadius: '6px', color: '#666', fontSize: '14px' }}>
+                        sk-...hidden
+                      </div>
+                      <button onClick={() => removeApiKey('openai')} style={{ padding: '10px 16px', background: '#fff', border: '1px solid #dc3545', color: '#dc3545', borderRadius: '6px', cursor: 'pointer', fontSize: '14px' }}>
+                        Remove
+                      </button>
+                    </div>
+                  ) : (
+                    <>
+                      <input
+                        type="password"
+                        placeholder="sk-proj-..."
+                        value={keyInputs.openai}
+                        onChange={(e) => setKeyInputs({ ...keyInputs, openai: e.target.value })}
+                        style={{ width: '100%', padding: '12px 14px', border: '1px solid #ddd', borderRadius: '6px', fontSize: '14px', boxSizing: 'border-box', marginBottom: '12px' }}
+                      />
+                      <div style={{ background: '#f8f9fa', borderRadius: '8px', padding: '14px', fontSize: '13px', color: '#555', lineHeight: 1.6 }}>
+                        <strong style={{ color: '#333' }}>How to get your OpenAI API key:</strong>
+                        <ol style={{ margin: '8px 0 0 0', paddingLeft: '20px' }}>
+                          <li>Go to <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer" style={{ color: '#007bff' }}>platform.openai.com/api-keys</a></li>
+                          <li>Sign in or create an OpenAI account</li>
+                          <li>Click "Create new secret key"</li>
+                          <li>Copy the key (starts with <code style={{ background: '#e9ecef', padding: '2px 6px', borderRadius: '3px' }}>sk-proj-</code>)</li>
+                        </ol>
+                        <p style={{ margin: '10px 0 0 0', color: '#888', fontSize: '12px' }}>
+                          Note: OpenAI charges based on usage. New accounts get free credits to start.
+                        </p>
+                      </div>
+                    </>
+                  )}
                 </div>
-              ))
-            )}
+
+                {/* Anthropic Card */}
+                <div style={{ background: '#fff', border: '1px solid #e0e0e0', borderRadius: '12px', padding: '24px', marginBottom: '16px' }}>
+                  <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '16px' }}>
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '4px' }}>
+                        <h3 style={{ margin: 0, color: '#333' }}>Anthropic</h3>
+                        {apiKeys.has_anthropic_key && (
+                          <span style={{ fontSize: '11px', padding: '2px 8px', background: '#d4edda', color: '#155724', borderRadius: '10px' }}>Connected</span>
+                        )}
+                      </div>
+                      <p style={{ margin: 0, color: '#666', fontSize: '13px' }}>Powers Claude 3 Opus and Claude 3 Sonnet models</p>
+                    </div>
+                    <div style={{ width: '40px', height: '40px', background: '#d97706', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <span style={{ color: '#fff', fontSize: '18px', fontWeight: 'bold' }}>A</span>
+                    </div>
+                  </div>
+
+                  {apiKeys.has_anthropic_key ? (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      <div style={{ flex: 1, padding: '10px 14px', background: '#f8f9fa', borderRadius: '6px', color: '#666', fontSize: '14px' }}>
+                        sk-ant-...hidden
+                      </div>
+                      <button onClick={() => removeApiKey('anthropic')} style={{ padding: '10px 16px', background: '#fff', border: '1px solid #dc3545', color: '#dc3545', borderRadius: '6px', cursor: 'pointer', fontSize: '14px' }}>
+                        Remove
+                      </button>
+                    </div>
+                  ) : (
+                    <>
+                      <input
+                        type="password"
+                        placeholder="sk-ant-api03-..."
+                        value={keyInputs.anthropic}
+                        onChange={(e) => setKeyInputs({ ...keyInputs, anthropic: e.target.value })}
+                        style={{ width: '100%', padding: '12px 14px', border: '1px solid #ddd', borderRadius: '6px', fontSize: '14px', boxSizing: 'border-box', marginBottom: '12px' }}
+                      />
+                      <div style={{ background: '#f8f9fa', borderRadius: '8px', padding: '14px', fontSize: '13px', color: '#555', lineHeight: 1.6 }}>
+                        <strong style={{ color: '#333' }}>How to get your Anthropic API key:</strong>
+                        <ol style={{ margin: '8px 0 0 0', paddingLeft: '20px' }}>
+                          <li>Go to <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener noreferrer" style={{ color: '#007bff' }}>console.anthropic.com/settings/keys</a></li>
+                          <li>Sign in or create an Anthropic account</li>
+                          <li>Click "Create Key"</li>
+                          <li>Copy the key (starts with <code style={{ background: '#e9ecef', padding: '2px 6px', borderRadius: '3px' }}>sk-ant-</code>)</li>
+                        </ol>
+                        <p style={{ margin: '10px 0 0 0', color: '#888', fontSize: '12px' }}>
+                          Note: Anthropic requires adding credits before use. Claude models are known for strong reasoning.
+                        </p>
+                      </div>
+                    </>
+                  )}
+                </div>
+
+                {(keyInputs.openai || keyInputs.anthropic) && (
+                  <button
+                    onClick={saveApiKeys}
+                    disabled={savingKeys}
+                    style={{
+                      width: '100%',
+                      padding: '14px',
+                      background: '#28a745',
+                      color: '#fff',
+                      border: 'none',
+                      borderRadius: '8px',
+                      fontSize: '16px',
+                      fontWeight: 500,
+                      cursor: savingKeys ? 'not-allowed' : 'pointer',
+                      opacity: savingKeys ? 0.7 : 1
+                    }}
+                  >
+                    {savingKeys ? 'Saving...' : 'Save API Keys'}
+                  </button>
+                )}
+              </div>
+
+              {/* Memories Section */}
+              <div>
+                <h2 style={{ color: '#333', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  Memories
+                  {memories.length > 0 && (
+                    <span style={{ fontSize: '12px', padding: '4px 10px', background: '#e3f2fd', color: '#1565c0', borderRadius: '12px' }}>
+                      {memories.length} saved
+                    </span>
+                  )}
+                </h2>
+                <p style={{ color: '#666', fontSize: '14px', marginBottom: '24px', lineHeight: 1.6 }}>
+                  Memories are facts that your AI employees will remember across all conversations. They help personalize responses and maintain context about you, your business, and your preferences.
+                </p>
+
+                {memories.length === 0 ? (
+                  <div style={{ background: '#f8f9fa', borderRadius: '12px', padding: '30px', textAlign: 'center' }}>
+                    <div style={{ fontSize: '32px', marginBottom: '12px' }}>brain icon</div>
+                    <p style={{ color: '#666', margin: 0, marginBottom: '8px' }}>No memories yet</p>
+                    <p style={{ color: '#999', fontSize: '13px', margin: 0 }}>
+                      Memories are created when you chat with employees. Ask them to "remember" something important.
+                    </p>
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    {memories.map(m => (
+                      <div key={m.id} style={{ background: '#fff', border: '1px solid #e0e0e0', borderRadius: '8px', padding: '16px' }}>
+                        <p style={{ margin: 0, color: '#333', lineHeight: 1.5 }}>{m.content}</p>
+                        <div style={{ marginTop: '10px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span style={{
+                            fontSize: '11px',
+                            padding: '2px 8px',
+                            borderRadius: '10px',
+                            background: m.project_name ? '#fff3e0' : m.employee_name ? '#e8f5e9' : '#e3f2fd',
+                            color: m.project_name ? '#e65100' : m.employee_name ? '#2e7d32' : '#1565c0'
+                          }}>
+                            {m.project_name ? `# ${m.project_name}` : m.employee_name ? m.employee_name : 'Shared with all'}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         ) : activeChannel ? (
           <>
