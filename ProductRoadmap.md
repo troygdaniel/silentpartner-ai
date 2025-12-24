@@ -64,11 +64,75 @@ This roadmap outlines planned features and improvements, organized into iterativ
 - [x] Automatic conversation summarization for long chats ✅
 - [x] "Start fresh" button to clear context without deleting history ✅
 
-### 2.3 Advanced Instructions
+### 2.3 Advanced Instructions & Roles
+
+#### Role Definition Contract (Applies to All Roles)
+
+All built-in and user-created roles in SilentPartner follow these rules:
+
+- **Advisory, not autonomous:** Roles provide analysis, drafts, plans, and recommendations. They do not execute external actions, modify systems, send messages, or act without explicit user initiation.
+- **User-owned:** All roles are owned by the user. System-provided roles are templates that can be customized, cloned, or reset, but never removed if marked as default (e.g., Project Manager).
+- **Clear scope:** Each role has an explicit purpose and boundaries (“does” and “does not”) to avoid overlap and confusion.
+- **Memory discipline:** Roles may read from shared or project memory, but only write memory when explicitly instructed or when the user approves suggested memory updates.
+- **Read-only integrations:** External integrations (Google Drive, Docs, Sheets, Gmail, etc.) are read-only by default and must be explicitly enabled by the user.
+- **Transparency:** All role outputs are visible, reviewable artifacts. No background actions occur without user awareness.
+
+**Goal:** Provide ready-to-use expert roles with strong defaults that can be customized and safely reset.
+
 - [x] Instruction templates/presets ✅
 - [x] Variables in instructions (e.g., {{user_name}}) ✅
 - [x] Conditional instructions based on project ✅
 - [x] Import/export employee configurations ✅
+- [x] Built-in expert role library (system-provided) ✅
+- [x] One-click add role to workspace ✅
+- [x] Role descriptions & intended use ✅
+- [x] Reset role to system defaults ✅
+- [x] Versioned role templates (safe updates over time) ✅
+
+#### 2.3.1 Built-in Expert Roles (v1)
+- Project Manager (default, undeletable)
+- Product Manager
+- QA Engineer
+- UX/UI Expert
+- Technical Advisor (CTO-style)
+- Finance Advisor (CFO-style)
+- Research Analyst
+- Beta Tester
+
+#### 2.3.2 Phase 2.3 Implementation Sequence
+
+To reduce risk and prevent scope creep, Phase 2.3 should be implemented in the following order:
+
+1. **Role Data Model**
+   - Define role templates as versioned system objects
+   - Separate system defaults from user-customized copies
+   - Persist role purpose, boundaries, and recommended integrations
+
+2. **Role Creation & Lifecycle**
+   - One-click add role from library
+   - Clone existing role
+   - Reset role to system defaults
+   - Prevent deletion of default Project Manager role
+
+3. **Instruction Composition**
+   - Merge system role instructions + user overrides at runtime
+   - Preserve full transparency of final instruction text
+   - Support safe updates when system role versions change
+
+4. **Memory Interaction Rules**
+   - Enforce read/write rules defined in the Role Definition Contract
+   - Allow roles to suggest memory updates for user approval
+   - Track memory provenance by role
+
+5. **UI & Onboarding**
+   - Role Library browsing and selection
+   - Clear descriptions of when to use each role
+   - Inline warnings for overlapping roles or misuse
+
+6. **Analytics & Guardrails**
+   - Track role usage frequency
+   - Detect unused or redundant roles
+   - Surface gentle recommendations (e.g., “You may not need both QA and Beta Tester”)
 
 ### 2.4 Memory Enhancements
 - [x] Manual memory creation from UI ✅
@@ -136,8 +200,11 @@ This roadmap outlines planned features and improvements, organized into iterativ
 - [ ] Email integration (send/receive)
 - [ ] Webhook support for notifications
 
-### 5.2 Productivity
-- [ ] Google Drive file import
+### 5.2 Productivity & Knowledge Sources
+- [ ] Google Drive integration (read-only)
+- [ ] Google Docs import & sync
+- [ ] Google Sheets import & analysis
+- [ ] Gmail read-only integration (email context & summaries)
 - [ ] Notion page import
 - [ ] Calendar integration for scheduling context
 

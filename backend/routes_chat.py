@@ -9,10 +9,37 @@ import json
 
 from auth import require_auth
 from database import get_db
-from models import User, Employee, Project, ProjectFile, UsageLog
+from models import User, Employee, Project, ProjectFile, UsageLog, RoleTemplate
 from crypto import decrypt_api_key
 from routes_memory import get_memories_for_employee, get_memories_for_project
 from routes_files import get_files_for_context
+
+
+def compose_instructions(employee: Employee, role_template: RoleTemplate = None) -> str:
+    """
+    Compose final instructions by merging template + user overrides.
+
+    Priority order:
+    1. Role template instructions (base)
+    2. Employee.instructions (may be customized from template)
+    3. Employee.user_instructions (user's additions)
+
+    This ensures transparency - the final instruction is always viewable.
+    """
+    parts = []
+
+    # Base instructions: prefer employee.instructions (may include template or custom)
+    if employee.instructions:
+        parts.append(employee.instructions)
+    elif role_template and role_template.instructions:
+        # Fallback to template if employee has no instructions
+        parts.append(role_template.instructions)
+
+    # Add user's custom additions if present
+    if employee.user_instructions:
+        parts.append("\n\n## Additional Instructions from User:\n" + employee.user_instructions)
+
+    return "\n".join(parts) if parts else ""
 
 router = APIRouter(prefix="/api/chat", tags=["chat"])
 
@@ -257,12 +284,23 @@ async def chat(
             project_name = project.name
             project_instructions = project.instructions
 
+    # Get role template if employee is based on one
+    role_template = None
+    if employee.role_template_id:
+        result = await db.execute(
+            select(RoleTemplate).where(RoleTemplate.id == employee.role_template_id)
+        )
+        role_template = result.scalar_one_or_none()
+
     # Get memories and build system prompt
     memories = await get_memories_for_employee(db, user_id, employee.id, project_id)
 
+    # Compose instructions from template + user overrides (Step 3: Instruction Composition)
+    composed_instructions = compose_instructions(employee, role_template)
+
     # Replace instruction variables with actual values
     base_instructions = replace_instruction_variables(
-        employee.instructions or "",
+        composed_instructions,
         user_name=db_user.name,
         employee_name=employee.name,
         project_name=project_name

@@ -33,7 +33,10 @@ class Employee(Base):
     owner_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True)
     name = Column(String, nullable=False)
     role = Column(String, nullable=True)  # e.g., "Project Manager", "Developer", "QA"
-    instructions = Column(Text, nullable=True)  # Custom instructions for this employee
+    instructions = Column(Text, nullable=True)  # Combined instructions (legacy, still used for display)
+    user_instructions = Column(Text, nullable=True)  # User's custom additions/overrides
+    role_template_id = Column(UUID(as_uuid=True), ForeignKey("role_templates.id", ondelete="SET NULL"), nullable=True, index=True)
+    role_template_version = Column(Integer, nullable=True)  # Version of template when cloned
     model = Column(String, default="gpt-4")  # AI model to use
     is_default = Column(Boolean, default=False)  # True for the default PM (undeletable)
     starred = Column(Boolean, default=False)  # Starred/bookmarked conversation
@@ -43,6 +46,7 @@ class Employee(Base):
 
     owner = relationship("User", back_populates="employees")
     memories = relationship("Memory", back_populates="employee", cascade="all, delete-orphan")
+    role_template = relationship("RoleTemplate")
 
 
 class Memory(Base):
@@ -163,3 +167,39 @@ class UsageLog(Base):
     input_tokens = Column(Integer, nullable=False, default=0)
     output_tokens = Column(Integer, nullable=False, default=0)
     created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class RoleTemplate(Base):
+    """System-provided role templates (versioned). Users clone these to create employees."""
+    __tablename__ = "role_templates"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    slug = Column(String, unique=True, nullable=False, index=True)  # e.g., "project-manager"
+    name = Column(String, nullable=False)  # e.g., "Project Manager"
+    description = Column(Text, nullable=True)  # What this role does
+    purpose = Column(Text, nullable=True)  # Primary purpose/goal
+    boundaries_does = Column(Text, nullable=True)  # What this role DOES (JSON array or newline-separated)
+    boundaries_does_not = Column(Text, nullable=True)  # What this role does NOT do
+    instructions = Column(Text, nullable=True)  # Default system instructions
+    recommended_integrations = Column(Text, nullable=True)  # JSON array of integration slugs for Phase 5
+    recommended_model = Column(String, default="gpt-4")  # Suggested AI model
+    is_default = Column(Boolean, default=False)  # True for Project Manager (auto-created)
+    is_undeletable = Column(Boolean, default=False)  # True for Project Manager (can't be removed)
+    version = Column(Integer, default=1)  # Template version for safe updates
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class MemorySuggestion(Base):
+    """Suggested memory updates from roles, awaiting user approval."""
+    __tablename__ = "memory_suggestions"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    owner_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True)
+    employee_id = Column(UUID(as_uuid=True), ForeignKey("employees.id", ondelete="CASCADE"), nullable=False, index=True)
+    project_id = Column(UUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE"), nullable=True, index=True)
+    content = Column(Text, nullable=False)  # Suggested memory content
+    category = Column(String, nullable=True)  # Suggested category
+    status = Column(String, default="pending")  # pending, approved, rejected
+    created_at = Column(DateTime, default=datetime.utcnow)
+    resolved_at = Column(DateTime, nullable=True)

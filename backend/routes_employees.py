@@ -16,13 +16,16 @@ class EmployeeCreate(BaseModel):
     name: str
     role: Optional[str] = None
     instructions: Optional[str] = None
+    user_instructions: Optional[str] = None
     model: str = "gpt-4"
+    role_template_id: Optional[str] = None
 
 
 class EmployeeUpdate(BaseModel):
     name: Optional[str] = None
     role: Optional[str] = None
     instructions: Optional[str] = None
+    user_instructions: Optional[str] = None
     model: Optional[str] = None
     starred: Optional[bool] = None
     archived: Optional[bool] = None
@@ -33,6 +36,9 @@ class EmployeeResponse(BaseModel):
     name: str
     role: Optional[str]
     instructions: Optional[str]
+    user_instructions: Optional[str]
+    role_template_id: Optional[str]
+    role_template_version: Optional[int]
     model: str
     is_default: bool
     starred: bool
@@ -62,6 +68,9 @@ async def list_employees(
             "name": emp.name,
             "role": emp.role,
             "instructions": emp.instructions,
+            "user_instructions": emp.user_instructions,
+            "role_template_id": str(emp.role_template_id) if emp.role_template_id else None,
+            "role_template_version": emp.role_template_version,
             "model": emp.model,
             "is_default": emp.is_default,
             "starred": emp.starred or False,
@@ -85,6 +94,8 @@ async def create_employee(
         name=data.name,
         role=data.role,
         instructions=data.instructions,
+        user_instructions=data.user_instructions,
+        role_template_id=UUID(data.role_template_id) if data.role_template_id else None,
         model=data.model,
         is_default=False
     )
@@ -97,6 +108,9 @@ async def create_employee(
         "name": employee.name,
         "role": employee.role,
         "instructions": employee.instructions,
+        "user_instructions": employee.user_instructions,
+        "role_template_id": str(employee.role_template_id) if employee.role_template_id else None,
+        "role_template_version": employee.role_template_version,
         "model": employee.model,
         "is_default": employee.is_default,
         "starred": employee.starred or False,
@@ -130,6 +144,9 @@ async def get_employee(
         "name": employee.name,
         "role": employee.role,
         "instructions": employee.instructions,
+        "user_instructions": employee.user_instructions,
+        "role_template_id": str(employee.role_template_id) if employee.role_template_id else None,
+        "role_template_version": employee.role_template_version,
         "model": employee.model,
         "is_default": employee.is_default,
         "starred": employee.starred or False,
@@ -173,6 +190,8 @@ async def update_employee(
         employee.role = data.role
     if data.instructions is not None:
         employee.instructions = data.instructions
+    if data.user_instructions is not None:
+        employee.user_instructions = data.user_instructions
     if data.model is not None:
         employee.model = data.model
     if data.starred is not None:
@@ -188,6 +207,9 @@ async def update_employee(
         "name": employee.name,
         "role": employee.role,
         "instructions": employee.instructions,
+        "user_instructions": employee.user_instructions,
+        "role_template_id": str(employee.role_template_id) if employee.role_template_id else None,
+        "role_template_version": employee.role_template_version,
         "model": employee.model,
         "is_default": employee.is_default,
         "starred": employee.starred or False,

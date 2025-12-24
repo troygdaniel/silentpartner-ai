@@ -219,6 +219,13 @@ function App() {
   const [showUsageModal, setShowUsageModal] = useState(false)
   const [projectEmployees, setProjectEmployees] = useState([])
 
+  // Phase 2.3: Role Library
+  const [showRoleLibrary, setShowRoleLibrary] = useState(false)
+  const [roleLibrary, setRoleLibrary] = useState({ templates: [], total_employees: 0 })
+  const [loadingRoles, setLoadingRoles] = useState(false)
+  const [memorySuggestions, setMemorySuggestions] = useState([])
+  const [pendingSuggestionsCount, setPendingSuggestionsCount] = useState(0)
+
   // Fetch functions with retry logic
   const fetchProjects = async () => {
     try {
@@ -271,6 +278,104 @@ function App() {
       const res = await fetchWithRetry(`/api/projects/${projectId}/employees`, { headers: API_HEADERS() })
       if (res.ok) setProjectEmployees(await res.json())
     } catch (err) { console.error('Failed to fetch project employees:', err) }
+  }
+
+  // Phase 2.3: Role Library functions
+  const fetchRoleLibrary = async () => {
+    setLoadingRoles(true)
+    try {
+      const res = await fetchWithRetry('/api/roles/library', { headers: API_HEADERS() })
+      if (res.ok) setRoleLibrary(await res.json())
+    } catch (err) { console.error('Failed to fetch role library:', err) }
+    setLoadingRoles(false)
+  }
+
+  const fetchMemorySuggestions = async () => {
+    try {
+      const res = await fetchWithRetry('/api/memory-suggestions?status=pending', { headers: API_HEADERS() })
+      if (res.ok) {
+        const data = await res.json()
+        setMemorySuggestions(data)
+        setPendingSuggestionsCount(data.length)
+      }
+    } catch (err) { console.error('Failed to fetch memory suggestions:', err) }
+  }
+
+  const handleAddRoleFromTemplate = async (templateId) => {
+    try {
+      const res = await fetch(`/api/roles/templates/${templateId}/create-employee`, {
+        method: 'POST',
+        headers: API_HEADERS(),
+        body: JSON.stringify({})
+      })
+      if (res.ok) {
+        showToast('Role added to your team', 'success')
+        fetchEmployees()
+        fetchRoleLibrary()
+      } else {
+        const err = await res.json()
+        showToast(err.detail || 'Failed to add role', 'error')
+      }
+    } catch (err) { showToast('Failed to add role', 'error') }
+  }
+
+  const handleCloneEmployee = async (employeeId) => {
+    try {
+      const res = await fetch(`/api/roles/employee/${employeeId}/clone`, {
+        method: 'POST',
+        headers: API_HEADERS(),
+        body: JSON.stringify({})
+      })
+      if (res.ok) {
+        showToast('Role cloned', 'success')
+        fetchEmployees()
+        fetchRoleLibrary()
+      } else {
+        showToast('Failed to clone role', 'error')
+      }
+    } catch (err) { showToast('Failed to clone role', 'error') }
+  }
+
+  const handleResetToTemplate = async (employeeId) => {
+    if (!confirm('Reset this role to its template defaults? Your custom instructions will be preserved.')) return
+    try {
+      const res = await fetch(`/api/roles/employee/${employeeId}/reset-to-template`, {
+        method: 'POST',
+        headers: API_HEADERS(),
+        body: JSON.stringify({ preserve_user_instructions: true })
+      })
+      if (res.ok) {
+        showToast('Role reset to template defaults', 'success')
+        fetchEmployees()
+      } else {
+        const err = await res.json()
+        showToast(err.detail || 'Failed to reset', 'error')
+      }
+    } catch (err) { showToast('Failed to reset role', 'error') }
+  }
+
+  const handleApproveMemorySuggestion = async (suggestionId) => {
+    try {
+      const res = await fetch(`/api/memory-suggestions/${suggestionId}/approve`, {
+        method: 'POST',
+        headers: API_HEADERS()
+      })
+      if (res.ok) {
+        showToast('Memory saved', 'success')
+        fetchMemorySuggestions()
+        fetchMemories()
+      }
+    } catch (err) { showToast('Failed to approve', 'error') }
+  }
+
+  const handleRejectMemorySuggestion = async (suggestionId) => {
+    try {
+      await fetch(`/api/memory-suggestions/${suggestionId}/reject`, {
+        method: 'POST',
+        headers: API_HEADERS()
+      })
+      fetchMemorySuggestions()
+    } catch (err) { showToast('Failed to reject', 'error') }
   }
 
   const handleAddTag = async () => {
@@ -381,7 +486,7 @@ function App() {
         .then(res => { if (res.ok) return res.json(); localStorage.removeItem('token'); return null })
         .then(data => {
           setUser(data)
-          if (data) { fetchProjects(); fetchEmployees(); fetchApiKeys(); fetchMemories() }
+          if (data) { fetchProjects(); fetchEmployees(); fetchApiKeys(); fetchMemories(); fetchMemorySuggestions() }
           setLoading(false)
         })
         .catch(() => { localStorage.removeItem('token'); setLoading(false) })
@@ -1274,6 +1379,7 @@ function App() {
           </div>
           <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
             <button onClick={() => { setShowSettings(true); setActiveChannel(null) }} style={{ ...styles.btn, flex: 1, background: '#333', color: '#fff', marginRight: 0, fontSize: '12px' }}>Settings</button>
+            <button onClick={() => { fetchRoleLibrary(); setShowRoleLibrary(true) }} style={{ ...styles.btn, flex: 1, background: '#6f42c1', color: '#fff', marginRight: 0, fontSize: '12px' }}>Roles</button>
             <button onClick={() => { fetchUsageStats(); setShowUsageModal(true) }} style={{ ...styles.btn, flex: 1, background: '#17a2b8', color: '#fff', marginRight: 0, fontSize: '12px' }}>Usage</button>
             <button onClick={handleLogout} style={{ ...styles.btn, flex: 1, background: '#dc3545', color: '#fff', marginRight: 0, fontSize: '12px' }}>Logout</button>
           </div>
@@ -2155,6 +2261,138 @@ function App() {
             )}
             <div style={{ marginTop: '20px' }}>
               <button onClick={() => setShowUsageModal(false)} style={{ ...styles.btn, background: '#6c757d', color: '#fff' }}>Close</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Role Library Modal */}
+      {showRoleLibrary && (
+        <div style={styles.modal} onClick={() => setShowRoleLibrary(false)}>
+          <div style={{ ...styles.modalContent, maxWidth: '800px', maxHeight: '80vh', overflow: 'auto' }} onClick={(e) => e.stopPropagation()}>
+            <h3 style={{ marginTop: 0, display: 'flex', alignItems: 'center', gap: '10px' }}>
+              Role Library
+              <span style={{ fontSize: '12px', padding: '4px 10px', background: '#e3f2fd', color: '#1565c0', borderRadius: '12px' }}>
+                {roleLibrary.total_employees} active roles
+              </span>
+            </h3>
+            <p style={{ color: '#666', fontSize: '14px', marginBottom: '20px' }}>
+              Add expert roles to your AI team. Each role comes with specialized instructions and boundaries.
+            </p>
+
+            {/* Memory Suggestions Alert */}
+            {pendingSuggestionsCount > 0 && (
+              <div style={{ background: '#fff3cd', border: '1px solid #ffc107', borderRadius: '8px', padding: '12px', marginBottom: '20px' }}>
+                <strong>Memory Suggestions:</strong> {pendingSuggestionsCount} pending approval
+                <div style={{ marginTop: '10px' }}>
+                  {memorySuggestions.slice(0, 3).map(s => (
+                    <div key={s.id} style={{ background: '#fff', padding: '10px', borderRadius: '6px', marginBottom: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div>
+                        <div style={{ fontSize: '13px', color: '#333' }}>{s.content.length > 60 ? s.content.slice(0, 60) + '...' : s.content}</div>
+                        <div style={{ fontSize: '11px', color: '#666' }}>Suggested by {s.employee_name}</div>
+                      </div>
+                      <div style={{ display: 'flex', gap: '6px' }}>
+                        <button onClick={() => handleApproveMemorySuggestion(s.id)} style={{ padding: '4px 10px', background: '#28a745', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}>Approve</button>
+                        <button onClick={() => handleRejectMemorySuggestion(s.id)} style={{ padding: '4px 10px', background: '#dc3545', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}>Reject</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {loadingRoles ? (
+              <p style={{ color: '#666' }}>Loading roles...</p>
+            ) : (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))', gap: '15px' }}>
+                {roleLibrary.templates.map(template => (
+                  <div key={template.id} style={{ background: '#f8f9fa', border: '1px solid #e0e0e0', borderRadius: '10px', padding: '16px', position: 'relative' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
+                      <div>
+                        <h4 style={{ margin: 0, color: '#333' }}>{template.name}</h4>
+                        {template.is_default && <span style={{ fontSize: '10px', padding: '2px 6px', background: '#007bff', color: '#fff', borderRadius: '4px', marginLeft: '6px' }}>Default</span>}
+                        {template.is_undeletable && <span style={{ fontSize: '10px', padding: '2px 6px', background: '#6c757d', color: '#fff', borderRadius: '4px', marginLeft: '4px' }}>Required</span>}
+                      </div>
+                      {template.in_use && (
+                        <span style={{ fontSize: '11px', padding: '3px 8px', background: '#d4edda', color: '#155724', borderRadius: '10px' }}>
+                          {template.employees_using.length} in use
+                        </span>
+                      )}
+                    </div>
+                    <p style={{ fontSize: '13px', color: '#666', margin: '8px 0', lineHeight: 1.5 }}>{template.description}</p>
+
+                    {/* What this role does */}
+                    {template.boundaries_does.length > 0 && (
+                      <div style={{ fontSize: '12px', marginBottom: '8px' }}>
+                        <strong style={{ color: '#28a745' }}>Does:</strong>
+                        <ul style={{ margin: '4px 0', paddingLeft: '18px', color: '#555' }}>
+                          {template.boundaries_does.slice(0, 3).map((item, i) => (
+                            <li key={i}>{item}</li>
+                          ))}
+                          {template.boundaries_does.length > 3 && <li style={{ color: '#888' }}>+{template.boundaries_does.length - 3} more...</li>}
+                        </ul>
+                      </div>
+                    )}
+
+                    {/* What this role does NOT do */}
+                    {template.boundaries_does_not.length > 0 && (
+                      <div style={{ fontSize: '12px', marginBottom: '12px' }}>
+                        <strong style={{ color: '#dc3545' }}>Does not:</strong>
+                        <ul style={{ margin: '4px 0', paddingLeft: '18px', color: '#555' }}>
+                          {template.boundaries_does_not.slice(0, 2).map((item, i) => (
+                            <li key={i}>{item}</li>
+                          ))}
+                          {template.boundaries_does_not.length > 2 && <li style={{ color: '#888' }}>+{template.boundaries_does_not.length - 2} more...</li>}
+                        </ul>
+                      </div>
+                    )}
+
+                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                      {!template.in_use ? (
+                        <button
+                          onClick={() => handleAddRoleFromTemplate(template.id)}
+                          style={{ padding: '6px 14px', background: '#28a745', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px' }}
+                        >
+                          Add to Team
+                        </button>
+                      ) : (
+                        <>
+                          <button
+                            onClick={() => handleAddRoleFromTemplate(template.id)}
+                            style={{ padding: '6px 14px', background: '#6c757d', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px' }}
+                          >
+                            Add Another
+                          </button>
+                          {template.employees_using.map(emp => (
+                            <div key={emp.id} style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                              <button
+                                onClick={() => handleCloneEmployee(emp.id)}
+                                style={{ padding: '4px 8px', background: '#17a2b8', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}
+                                title={`Clone ${emp.name}`}
+                              >
+                                Clone
+                              </button>
+                              {!emp.is_default && (
+                                <button
+                                  onClick={() => handleResetToTemplate(emp.id)}
+                                  style={{ padding: '4px 8px', background: '#ffc107', color: '#000', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}
+                                  title="Reset to template defaults"
+                                >
+                                  Reset
+                                </button>
+                              )}
+                            </div>
+                          ))}
+                        </>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div style={{ marginTop: '20px' }}>
+              <button onClick={() => setShowRoleLibrary(false)} style={{ ...styles.btn, background: '#6c757d', color: '#fff' }}>Close</button>
             </div>
           </div>
         </div>
