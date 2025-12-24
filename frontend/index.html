@@ -16,6 +16,17 @@
       /* Mobile responsive styles */
       @media (max-width: 768px) {
         .sidebar-toggle { display: block !important; }
+        .chat-input-area { flex-direction: column !important; }
+        .chat-input-area button { width: 100% !important; }
+        .chat-header { flex-direction: column !important; gap: 10px !important; align-items: flex-start !important; }
+        .chat-header-buttons { width: 100% !important; }
+        .chat-header-buttons button { flex: 1 !important; font-size: 12px !important; padding: 6px 8px !important; }
+      }
+
+      @media (max-width: 480px) {
+        .main-content { padding: 10px !important; }
+        .message-container { gap: 8px !important; }
+        .message-avatar { width: 28px !important; height: 28px !important; font-size: 12px !important; }
       }
     </style>
   </head>

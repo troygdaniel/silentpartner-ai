@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from fastapi.responses import Response
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from typing import List
@@ -113,6 +114,47 @@ async def list_files(
     files = result.scalars().all()
 
     return [{"id": str(f.id), "filename": f.filename, "size": f.size} for f in files]
+
+
+@router.get("/{employee_id}/{file_id}/download")
+async def download_file(
+    employee_id: str,
+    file_id: str,
+    user: dict = Depends(require_auth),
+    db: AsyncSession = Depends(get_db)
+):
+    """Download a file from a DM conversation."""
+    user_id = UUID(user["sub"])
+
+    result = await db.execute(
+        select(DMFile)
+        .where(DMFile.id == UUID(file_id), DMFile.owner_id == user_id)
+    )
+    dm_file = result.scalar_one_or_none()
+
+    if dm_file is None:
+        raise HTTPException(status_code=404, detail="File not found")
+
+    # Determine content type based on extension
+    ext = dm_file.filename.lower().split('.')[-1] if '.' in dm_file.filename else 'txt'
+    content_types = {
+        'json': 'application/json',
+        'csv': 'text/csv',
+        'html': 'text/html',
+        'css': 'text/css',
+        'xml': 'application/xml',
+        'yaml': 'text/yaml',
+        'yml': 'text/yaml',
+    }
+    content_type = content_types.get(ext, 'text/plain')
+
+    return Response(
+        content=dm_file.content.encode('utf-8'),
+        media_type=content_type,
+        headers={
+            'Content-Disposition': f'attachment; filename="{dm_file.filename}"'
+        }
+    )
 
 
 @router.delete("/{employee_id}/{file_id}")

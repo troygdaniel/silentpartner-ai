@@ -5,6 +5,24 @@ const API_HEADERS = () => ({
   'Content-Type': 'application/json'
 })
 
+// Retry helper with exponential backoff
+const fetchWithRetry = async (url, options = {}, maxRetries = 3) => {
+  let lastError
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      const res = await fetch(url, options)
+      if (res.ok || res.status < 500) return res // Don't retry client errors
+      lastError = new Error(`HTTP ${res.status}`)
+    } catch (err) {
+      lastError = err
+    }
+    if (attempt < maxRetries - 1) {
+      await new Promise(r => setTimeout(r, Math.pow(2, attempt) * 1000)) // 1s, 2s, 4s
+    }
+  }
+  throw lastError
+}
+
 // Toast notification component
 function Toast({ message, type, onClose }) {
   useEffect(() => {
@@ -115,31 +133,31 @@ function App() {
   const [keyInputs, setKeyInputs] = useState({ openai: '', anthropic: '' })
   const [savingKeys, setSavingKeys] = useState(false)
 
-  // Fetch functions
+  // Fetch functions with retry logic
   const fetchProjects = async () => {
     try {
-      const res = await fetch('/api/projects', { headers: API_HEADERS() })
+      const res = await fetchWithRetry('/api/projects', { headers: API_HEADERS() })
       if (res.ok) setProjects(await res.json())
-    } catch (err) { console.error('Failed to fetch projects:', err) }
+    } catch (err) { console.error('Failed to fetch projects:', err); showToast('Failed to load projects', 'error') }
   }
 
   const fetchEmployees = async () => {
     try {
-      const res = await fetch('/api/employees', { headers: API_HEADERS() })
+      const res = await fetchWithRetry('/api/employees', { headers: API_HEADERS() })
       if (res.ok) setEmployees(await res.json())
-    } catch (err) { console.error('Failed to fetch employees:', err) }
+    } catch (err) { console.error('Failed to fetch employees:', err); showToast('Failed to load employees', 'error') }
   }
 
   const fetchApiKeys = async () => {
     try {
-      const res = await fetch('/api/settings/api-keys', { headers: API_HEADERS() })
+      const res = await fetchWithRetry('/api/settings/api-keys', { headers: API_HEADERS() })
       if (res.ok) setApiKeys(await res.json())
     } catch (err) { console.error('Failed to fetch API keys:', err) }
   }
 
   const fetchMemories = async () => {
     try {
-      const res = await fetch('/api/memories/all', { headers: API_HEADERS() })
+      const res = await fetchWithRetry('/api/memories/all', { headers: API_HEADERS() })
       if (res.ok) setMemories(await res.json())
     } catch (err) { console.error('Failed to fetch memories:', err) }
   }
@@ -150,9 +168,9 @@ function App() {
       const endpoint = channel.type === 'project'
         ? `/api/messages/project/${channel.id}`
         : `/api/messages/dm/${channel.id}`
-      const res = await fetch(endpoint, { headers: API_HEADERS() })
+      const res = await fetchWithRetry(endpoint, { headers: API_HEADERS() })
       if (res.ok) setMessages(await res.json())
-    } catch (err) { console.error('Failed to fetch messages:', err) }
+    } catch (err) { console.error('Failed to fetch messages:', err); showToast('Failed to load messages', 'error') }
   }
 
   useEffect(() => {
@@ -375,6 +393,28 @@ function App() {
       })
       if (res.ok) setUploadedFiles(uploadedFiles.filter(f => f.id !== fileId))
     } catch (err) { console.error('Failed to delete file:', err) }
+  }
+
+  const handleDownloadFile = async (fileId, filename) => {
+    if (!activeChannel || activeChannel.type !== 'dm') return
+    try {
+      const res = await fetch(`/api/files/${activeChannel.id}/${fileId}/download`, {
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+      })
+      if (res.ok) {
+        const blob = await res.blob()
+        const url = window.URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = filename
+        document.body.appendChild(a)
+        a.click()
+        window.URL.revokeObjectURL(url)
+        document.body.removeChild(a)
+      } else {
+        showToast('Failed to download file', 'error')
+      }
+    } catch (err) { showToast('Download error', 'error') }
   }
 
   // Chat
@@ -812,12 +852,12 @@ function App() {
           </div>
         ) : activeChannel ? (
           <>
-            <div style={styles.header}>
+            <div style={styles.header} className="chat-header">
               <div>
                 <strong>{activeChannel.type === 'project' ? '#' : ''}{activeChannel.name}</strong>
                 {activeChannel.type === 'project' && <span style={{ color: '#999', marginLeft: '10px', fontSize: '14px' }}>Use @name to mention an employee</span>}
               </div>
-              <div style={{ display: 'flex', gap: '8px' }}>
+              <div style={{ display: 'flex', gap: '8px' }} className="chat-header-buttons">
                 {messages.length > 0 && (
                   <button onClick={handleClearChat} style={{ ...styles.btn, background: '#dc3545', color: '#fff' }}>
                     Clear Chat
@@ -892,20 +932,21 @@ function App() {
                 <div style={{ marginBottom: '10px', display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
                   {uploadedFiles.map(f => (
                     <div key={f.id} style={{ display: 'flex', alignItems: 'center', background: '#e3f2fd', padding: '4px 10px', borderRadius: '15px', fontSize: '12px' }}>
-                      <span style={{ marginRight: '8px' }}>{f.filename}</span>
-                      <button onClick={() => handleDeleteFile(f.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#666', padding: '0', fontSize: '14px' }}>x</button>
+                      <span style={{ marginRight: '6px' }}>{f.filename}</span>
+                      <button onClick={() => handleDownloadFile(f.id, f.filename)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#1565c0', padding: '0 4px', fontSize: '12px' }} title="Download">↓</button>
+                      <button onClick={() => handleDeleteFile(f.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#666', padding: '0', fontSize: '14px' }} title="Delete">×</button>
                     </div>
                   ))}
                 </div>
               )}
-              <div style={{ display: 'flex', gap: '10px' }}>
+              <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }} className="chat-input-area">
                 {activeChannel.type === 'dm' && (
                   <>
                     <input type="file" ref={fileInputRef} onChange={handleFileUpload} style={{ display: 'none' }} accept=".txt,.md,.json,.csv,.py,.js,.ts,.jsx,.tsx,.html,.css,.xml,.yaml,.yml,.log,.sql" />
                     <button
                       onClick={() => fileInputRef.current?.click()}
                       disabled={isStreaming || uploading || uploadedFiles.length >= 5}
-                      style={{ ...styles.btn, background: '#6c757d', color: '#fff', opacity: (isStreaming || uploading || uploadedFiles.length >= 5) ? 0.6 : 1 }}
+                      style={{ ...styles.btn, background: '#6c757d', color: '#fff', opacity: (isStreaming || uploading || uploadedFiles.length >= 5) ? 0.6 : 1, flexShrink: 0 }}
                     >
                       {uploading ? '...' : '+'}
                     </button>
@@ -918,9 +959,9 @@ function App() {
                   onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && sendMessage()}
                   placeholder={activeChannel.type === 'project' ? 'Message #' + activeChannel.name + ' (use @name to mention)' : 'Message ' + activeChannel.name}
                   disabled={isStreaming}
-                  style={{ flex: 1, padding: '12px', border: '1px solid #ddd', borderRadius: '8px', fontSize: '14px' }}
+                  style={{ flex: 1, minWidth: '0', padding: '12px', border: '1px solid #ddd', borderRadius: '8px', fontSize: '14px' }}
                 />
-                <button onClick={sendMessage} disabled={isStreaming || !chatInput.trim()} style={{ ...styles.btn, background: '#007bff', color: '#fff', opacity: isStreaming ? 0.6 : 1 }}>
+                <button onClick={sendMessage} disabled={isStreaming || !chatInput.trim()} style={{ ...styles.btn, background: '#007bff', color: '#fff', opacity: isStreaming ? 0.6 : 1, flexShrink: 0 }}>
                   {isStreaming ? 'Sending...' : 'Send'}
                 </button>
               </div>
