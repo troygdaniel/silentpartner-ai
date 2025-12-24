@@ -168,3 +168,50 @@ async def run_migrations():
             await conn.execute(text(
                 "ALTER TABLE projects ADD COLUMN IF NOT EXISTS instructions TEXT"
             ))
+
+            # Create project_employees table for project-specific employee assignments (Phase 3)
+            await conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS project_employees (
+                    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                    project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+                    employee_id UUID NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+                    created_at TIMESTAMP DEFAULT NOW(),
+                    UNIQUE(project_id, employee_id)
+                )
+            """))
+            await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_project_employees_project_id ON project_employees(project_id)"))
+            await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_project_employees_employee_id ON project_employees(employee_id)"))
+
+            # Create conversation_tags table for tagging (Phase 3)
+            await conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS conversation_tags (
+                    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                    owner_id UUID NOT NULL REFERENCES users(id),
+                    project_id UUID REFERENCES projects(id) ON DELETE CASCADE,
+                    employee_id UUID REFERENCES employees(id) ON DELETE CASCADE,
+                    tag VARCHAR NOT NULL,
+                    created_at TIMESTAMP DEFAULT NOW()
+                )
+            """))
+            await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_conversation_tags_owner_id ON conversation_tags(owner_id)"))
+            await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_conversation_tags_project_id ON conversation_tags(project_id)"))
+            await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_conversation_tags_employee_id ON conversation_tags(employee_id)"))
+
+            # Create usage_logs table for tracking API usage (Phase 3)
+            await conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS usage_logs (
+                    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                    owner_id UUID NOT NULL REFERENCES users(id),
+                    employee_id UUID REFERENCES employees(id) ON DELETE SET NULL,
+                    project_id UUID REFERENCES projects(id) ON DELETE SET NULL,
+                    model VARCHAR NOT NULL,
+                    provider VARCHAR NOT NULL,
+                    input_tokens INTEGER NOT NULL DEFAULT 0,
+                    output_tokens INTEGER NOT NULL DEFAULT 0,
+                    created_at TIMESTAMP DEFAULT NOW()
+                )
+            """))
+            await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_usage_logs_owner_id ON usage_logs(owner_id)"))
+            await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_usage_logs_created_at ON usage_logs(created_at)"))
+            await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_usage_logs_employee_id ON usage_logs(employee_id)"))
+            await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_usage_logs_project_id ON usage_logs(project_id)"))

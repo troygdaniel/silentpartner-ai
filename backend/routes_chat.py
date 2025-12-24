@@ -9,7 +9,7 @@ import json
 
 from auth import require_auth
 from database import get_db
-from models import User, Employee, Project, ProjectFile
+from models import User, Employee, Project, ProjectFile, UsageLog
 from crypto import decrypt_api_key
 from routes_memory import get_memories_for_employee, get_memories_for_project
 from routes_files import get_files_for_context
@@ -164,6 +164,29 @@ async def stream_anthropic_response(api_key: str, model: str, system_prompt: str
         yield f"data: {json.dumps({'error': str(e)})}\n\n"
 
 
+async def log_usage(db: AsyncSession, user_id: UUID, employee_id: UUID, project_id: Optional[UUID],
+                    model: str, provider: str, system_prompt: str, messages: List[dict]):
+    """Log estimated usage to the database."""
+    input_text = system_prompt or ""
+    for m in messages:
+        input_text += m.get("content", "")
+    input_tokens = estimate_tokens(input_text)
+    # Estimate output tokens as roughly 1/3 of input for now (will be updated with actual usage later)
+    output_tokens = max(100, input_tokens // 3)
+
+    usage = UsageLog(
+        owner_id=user_id,
+        employee_id=employee_id,
+        project_id=project_id,
+        model=model,
+        provider=provider,
+        input_tokens=input_tokens,
+        output_tokens=output_tokens
+    )
+    db.add(usage)
+    await db.commit()
+
+
 @router.post("")
 async def chat(
     request: ChatRequest,
@@ -283,6 +306,9 @@ async def chat(
             for f in files:
                 file_section += f"\n### {f['filename']}\n```\n{f['content']}\n```\n"
             system_prompt = system_prompt + file_section if system_prompt else file_section.strip()
+
+    # Log usage before streaming (estimate based on input)
+    await log_usage(db, user_id, employee.id, project_id, model, provider, system_prompt, api_messages)
 
     # Stream response
     if provider == "openai":

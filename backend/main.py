@@ -15,6 +15,10 @@ from routes_files import router as files_router
 from routes_projects import router as projects_router
 from routes_messages import router as messages_router
 from routes_project_files import router as project_files_router
+from routes_project_employees import router as project_employees_router
+from routes_tags import router as tags_router
+from routes_usage import router as usage_router
+from routes_export import router as export_router
 import models  # noqa: F401 - Import to register models with Base
 
 
@@ -39,6 +43,10 @@ app.include_router(files_router)
 app.include_router(projects_router)
 app.include_router(messages_router)
 app.include_router(project_files_router)
+app.include_router(project_employees_router)
+app.include_router(tags_router)
+app.include_router(usage_router)
+app.include_router(export_router)
 
 
 @app.get("/api/health")

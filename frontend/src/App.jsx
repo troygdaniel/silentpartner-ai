@@ -212,6 +212,13 @@ function App() {
   const [searching, setSearching] = useState(false)
   const [showSearchResults, setShowSearchResults] = useState(false)
 
+  // Phase 3: Tags and Usage
+  const [conversationTags, setConversationTags] = useState([])
+  const [newTag, setNewTag] = useState('')
+  const [usageStats, setUsageStats] = useState(null)
+  const [showUsageModal, setShowUsageModal] = useState(false)
+  const [projectEmployees, setProjectEmployees] = useState([])
+
   // Fetch functions with retry logic
   const fetchProjects = async () => {
     try {
@@ -239,6 +246,116 @@ function App() {
       const res = await fetchWithRetry('/api/memories/all', { headers: API_HEADERS() })
       if (res.ok) setMemories(await res.json())
     } catch (err) { console.error('Failed to fetch memories:', err) }
+  }
+
+  const fetchConversationTags = async (channel) => {
+    if (!channel) return
+    try {
+      const endpoint = channel.type === 'project'
+        ? `/api/tags/project/${channel.id}`
+        : `/api/tags/dm/${channel.id}`
+      const res = await fetchWithRetry(endpoint, { headers: API_HEADERS() })
+      if (res.ok) setConversationTags(await res.json())
+    } catch (err) { console.error('Failed to fetch tags:', err) }
+  }
+
+  const fetchUsageStats = async () => {
+    try {
+      const res = await fetchWithRetry('/api/usage/summary?days=30', { headers: API_HEADERS() })
+      if (res.ok) setUsageStats(await res.json())
+    } catch (err) { console.error('Failed to fetch usage:', err) }
+  }
+
+  const fetchProjectEmployees = async (projectId) => {
+    try {
+      const res = await fetchWithRetry(`/api/projects/${projectId}/employees`, { headers: API_HEADERS() })
+      if (res.ok) setProjectEmployees(await res.json())
+    } catch (err) { console.error('Failed to fetch project employees:', err) }
+  }
+
+  const handleAddTag = async () => {
+    if (!newTag.trim() || !activeChannel) return
+    try {
+      const res = await fetch('/api/tags', {
+        method: 'POST',
+        headers: API_HEADERS(),
+        body: JSON.stringify({
+          tag: newTag.trim(),
+          project_id: activeChannel.type === 'project' ? activeChannel.id : null,
+          employee_id: activeChannel.type === 'dm' ? activeChannel.id : null
+        })
+      })
+      if (res.ok) {
+        setNewTag('')
+        fetchConversationTags(activeChannel)
+        showToast('Tag added', 'success')
+      }
+    } catch (err) { showToast('Failed to add tag', 'error') }
+  }
+
+  const handleRemoveTag = async (tag) => {
+    if (!activeChannel) return
+    try {
+      const endpoint = activeChannel.type === 'project'
+        ? `/api/tags/project/${activeChannel.id}/${encodeURIComponent(tag)}`
+        : `/api/tags/dm/${activeChannel.id}/${encodeURIComponent(tag)}`
+      await fetch(endpoint, { method: 'DELETE', headers: API_HEADERS() })
+      fetchConversationTags(activeChannel)
+    } catch (err) { showToast('Failed to remove tag', 'error') }
+  }
+
+  const handleExportPDF = async () => {
+    if (!activeChannel) return
+    try {
+      const endpoint = activeChannel.type === 'project'
+        ? `/api/export/project/${activeChannel.id}/pdf`
+        : `/api/export/dm/${activeChannel.id}/pdf`
+      const res = await fetch(endpoint, { headers: API_HEADERS() })
+      if (res.ok) {
+        const blob = await res.blob()
+        const url = window.URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = `${activeChannel.name}.pdf`
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
+        window.URL.revokeObjectURL(url)
+        showToast('PDF exported', 'success')
+      } else {
+        showToast('Failed to export PDF', 'error')
+      }
+    } catch (err) { showToast('Export error', 'error') }
+  }
+
+  const handleAssignEmployee = async (employeeId) => {
+    if (!activeChannel || activeChannel.type !== 'project') return
+    try {
+      const res = await fetch(`/api/projects/${activeChannel.id}/employees`, {
+        method: 'POST',
+        headers: API_HEADERS(),
+        body: JSON.stringify({ employee_id: employeeId })
+      })
+      if (res.ok) {
+        fetchProjectEmployees(activeChannel.id)
+        showToast('Employee assigned', 'success')
+      } else {
+        const err = await res.json()
+        showToast(err.detail || 'Failed to assign', 'error')
+      }
+    } catch (err) { showToast('Failed to assign employee', 'error') }
+  }
+
+  const handleUnassignEmployee = async (employeeId) => {
+    if (!activeChannel || activeChannel.type !== 'project') return
+    try {
+      await fetch(`/api/projects/${activeChannel.id}/employees/${employeeId}`, {
+        method: 'DELETE',
+        headers: API_HEADERS()
+      })
+      fetchProjectEmployees(activeChannel.id)
+      showToast('Employee removed', 'success')
+    } catch (err) { showToast('Failed to remove employee', 'error') }
   }
 
   const fetchMessages = async (channel) => {
@@ -300,10 +417,13 @@ function App() {
     if (activeChannel) {
       fetchMessages(activeChannel)
       fetchPinnedMessages(activeChannel)
+      fetchConversationTags(activeChannel)
       if (activeChannel.type === 'dm') {
         fetchDMFiles(activeChannel.id)
+        setProjectEmployees([])
       } else {
         setUploadedFiles([])
+        fetchProjectEmployees(activeChannel.id)
       }
       setChatError(null)
       setShowSettings(false)
@@ -1152,8 +1272,9 @@ function App() {
               <div style={{ fontSize: '14px', fontWeight: 'bold', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{user.name}</div>
             </div>
           </div>
-          <div style={{ display: 'flex', gap: '8px' }}>
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
             <button onClick={() => { setShowSettings(true); setActiveChannel(null) }} style={{ ...styles.btn, flex: 1, background: '#333', color: '#fff', marginRight: 0, fontSize: '12px' }}>Settings</button>
+            <button onClick={() => { fetchUsageStats(); setShowUsageModal(true) }} style={{ ...styles.btn, flex: 1, background: '#17a2b8', color: '#fff', marginRight: 0, fontSize: '12px' }}>Usage</button>
             <button onClick={handleLogout} style={{ ...styles.btn, flex: 1, background: '#dc3545', color: '#fff', marginRight: 0, fontSize: '12px' }}>Logout</button>
           </div>
         </div>
@@ -1502,7 +1623,10 @@ function App() {
                 {messages.length > 0 && (
                   <>
                     <button onClick={handleExportMarkdown} style={{ ...styles.btn, background: '#6f42c1', color: '#fff' }} title="Export conversation as Markdown">
-                      Export
+                      MD
+                    </button>
+                    <button onClick={handleExportPDF} style={{ ...styles.btn, background: '#e53935', color: '#fff' }} title="Export conversation as PDF">
+                      PDF
                     </button>
                     {freshContextFrom === null ? (
                       <button onClick={handleStartFresh} style={{ ...styles.btn, background: '#17a2b8', color: '#fff' }} title="Clear AI context without deleting messages">
@@ -1514,7 +1638,7 @@ function App() {
                       </button>
                     )}
                     <button onClick={handleClearChat} style={{ ...styles.btn, background: '#dc3545', color: '#fff' }}>
-                      Clear Chat
+                      Clear
                     </button>
                   </>
                 )}
@@ -1538,6 +1662,52 @@ function App() {
             </div>
 
             <div style={styles.messages}>
+              {/* Tags row */}
+              <div style={{ marginBottom: '10px', display: 'flex', flexWrap: 'wrap', gap: '6px', alignItems: 'center' }}>
+                {conversationTags.map(tag => (
+                  <span key={tag} style={{ fontSize: '11px', padding: '3px 8px', background: '#e3f2fd', color: '#1565c0', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    {tag}
+                    <button onClick={() => handleRemoveTag(tag)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#1565c0', padding: 0, fontSize: '12px' }}>×</button>
+                  </span>
+                ))}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <input
+                    type="text"
+                    value={newTag}
+                    onChange={(e) => setNewTag(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleAddTag()}
+                    placeholder="Add tag..."
+                    style={{ padding: '3px 8px', fontSize: '11px', border: '1px solid #ddd', borderRadius: '12px', width: '80px' }}
+                  />
+                  {newTag && <button onClick={handleAddTag} style={{ background: '#1565c0', color: '#fff', border: 'none', borderRadius: '12px', padding: '3px 8px', fontSize: '11px', cursor: 'pointer' }}>+</button>}
+                </div>
+              </div>
+
+              {/* Project employees (for project channels) */}
+              {activeChannel.type === 'project' && (
+                <div style={{ marginBottom: '10px', padding: '8px 12px', background: '#f8f9fa', borderRadius: '6px', fontSize: '12px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                    <span style={{ fontWeight: 500, color: '#666' }}>Team:</span>
+                    {projectEmployees.map(pe => (
+                      <span key={pe.id} style={{ padding: '2px 8px', background: '#fff', borderRadius: '12px', border: '1px solid #ddd', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        {pe.name}
+                        <button onClick={() => handleUnassignEmployee(pe.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#999', padding: 0, fontSize: '12px' }}>×</button>
+                      </span>
+                    ))}
+                    <select
+                      onChange={(e) => { if (e.target.value) { handleAssignEmployee(e.target.value); e.target.value = '' } }}
+                      style={{ padding: '2px 6px', fontSize: '11px', border: '1px solid #ddd', borderRadius: '6px', background: '#fff' }}
+                      defaultValue=""
+                    >
+                      <option value="">+ Add</option>
+                      {employees.filter(e => !projectEmployees.find(pe => pe.id === e.id)).map(e => (
+                        <option key={e.id} value={e.id}>{e.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              )}
+
               {/* Pinned messages banner */}
               {pinnedMessages.length > 0 && (
                 <div style={{ marginBottom: '15px', padding: '10px 15px', background: '#fff3cd', borderRadius: '8px', border: '1px solid #ffc107' }}>
@@ -1942,6 +2112,49 @@ function App() {
                 {uploading ? 'Uploading...' : 'Upload File'}
               </button>
               <button onClick={() => setFilePreview(null)} style={{ ...styles.btn, background: '#6c757d', color: '#fff' }}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Usage Stats Modal */}
+      {showUsageModal && (
+        <div style={styles.modal} onClick={() => setShowUsageModal(false)}>
+          <div style={{ ...styles.modalContent, maxWidth: '600px' }} onClick={(e) => e.stopPropagation()}>
+            <h3 style={{ marginTop: 0 }}>API Usage (Last 30 Days)</h3>
+            {usageStats ? (
+              <div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '15px', marginBottom: '20px' }}>
+                  <div style={{ background: '#f8f9fa', padding: '15px', borderRadius: '8px', textAlign: 'center' }}>
+                    <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#333' }}>{usageStats.total_requests.toLocaleString()}</div>
+                    <div style={{ fontSize: '12px', color: '#666' }}>Total Requests</div>
+                  </div>
+                  <div style={{ background: '#f8f9fa', padding: '15px', borderRadius: '8px', textAlign: 'center' }}>
+                    <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#333' }}>{usageStats.total_tokens.toLocaleString()}</div>
+                    <div style={{ fontSize: '12px', color: '#666' }}>Total Tokens</div>
+                  </div>
+                  <div style={{ background: '#e8f5e9', padding: '15px', borderRadius: '8px', textAlign: 'center' }}>
+                    <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#2e7d32' }}>${usageStats.estimated_total_cost.toFixed(2)}</div>
+                    <div style={{ fontSize: '12px', color: '#666' }}>Est. Cost</div>
+                  </div>
+                </div>
+                <h4 style={{ marginBottom: '10px' }}>By Model</h4>
+                <div style={{ maxHeight: '200px', overflow: 'auto' }}>
+                  {usageStats.by_model.map(m => (
+                    <div key={m.model} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid #eee' }}>
+                      <span style={{ fontWeight: 500 }}>{m.model}</span>
+                      <span style={{ color: '#666' }}>
+                        {m.requests} requests | {(m.input_tokens + m.output_tokens).toLocaleString()} tokens | ${m.estimated_cost.toFixed(3)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <p style={{ color: '#666' }}>Loading usage data...</p>
+            )}
+            <div style={{ marginTop: '20px' }}>
+              <button onClick={() => setShowUsageModal(false)} style={{ ...styles.btn, background: '#6c757d', color: '#fff' }}>Close</button>
             </div>
           </div>
         </div>
