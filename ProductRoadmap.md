@@ -48,14 +48,15 @@ This roadmap outlines planned features and improvements, organized into iterativ
 
 ---
 
-## Phase 2: Enhanced AI Capabilities
+## Phase 2: Enhanced AI Capabilities (In Progress)
 
 **Goal:** Make AI employees smarter and more capable.
 
 ### 2.1 Model Expansion
-- [ ] Add GPT-4 Turbo option
-- [ ] Add Claude 3.5 Sonnet
-- [ ] Add Claude 3 Haiku (faster, cheaper option)
+- [x] Add GPT-4 Turbo option ✅
+- [x] Add Claude 3.5 Sonnet ✅
+- [x] Add Claude 3 Haiku (faster, cheaper option) ✅
+- [x] Add GPT-4o and GPT-4o Mini ✅
 - [ ] Model selection per conversation (not just per employee)
 
 ### 2.2 Context Management
@@ -71,7 +72,7 @@ This roadmap outlines planned features and improvements, organized into iterativ
 - [ ] Import/export employee configurations
 
 ### 2.4 Memory Enhancements
-- [ ] Manual memory creation from UI
+- [x] Manual memory creation from UI ✅
 - [x] Delete individual memories from UI ✅
 - [ ] Memory categories/tags
 - [ ] Memory search
