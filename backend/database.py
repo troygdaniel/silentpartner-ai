@@ -140,3 +140,26 @@ async def run_migrations():
             """))
             await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_dm_files_employee_id ON dm_files(employee_id)"))
             await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_dm_files_owner_id ON dm_files(owner_id)"))
+
+            # Add starred and archived columns to employees table (Phase 3)
+            await conn.execute(text(
+                "ALTER TABLE employees ADD COLUMN IF NOT EXISTS starred BOOLEAN DEFAULT FALSE"
+            ))
+            await conn.execute(text(
+                "ALTER TABLE employees ADD COLUMN IF NOT EXISTS archived BOOLEAN DEFAULT FALSE"
+            ))
+
+            # Add category column to memories table (Phase 3)
+            await conn.execute(text(
+                "ALTER TABLE memories ADD COLUMN IF NOT EXISTS category VARCHAR"
+            ))
+
+            # Add pinned column to messages table (Phase 3)
+            await conn.execute(text(
+                "ALTER TABLE messages ADD COLUMN IF NOT EXISTS pinned BOOLEAN DEFAULT FALSE"
+            ))
+
+            # Add starred column to projects table (Phase 3)
+            await conn.execute(text(
+                "ALTER TABLE projects ADD COLUMN IF NOT EXISTS starred BOOLEAN DEFAULT FALSE"
+            ))
