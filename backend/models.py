@@ -16,6 +16,8 @@ class User(Base):
     picture = Column(String, nullable=True)
     google_id = Column(String, unique=True, nullable=True, index=True)
     is_active = Column(Boolean, default=True)
+    openai_api_key = Column(String, nullable=True)  # Encrypted BYO key for OpenAI
+    anthropic_api_key = Column(String, nullable=True)  # Encrypted BYO key for Anthropic
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 

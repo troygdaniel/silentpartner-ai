@@ -8,6 +8,8 @@ import os
 from database import get_engine, init_db
 from routes_auth import router as auth_router
 from routes_employees import router as employees_router
+from routes_settings import router as settings_router
+from routes_chat import router as chat_router
 import models  # noqa: F401 - Import to register models with Base
 
 
@@ -24,6 +26,8 @@ app = FastAPI(lifespan=lifespan)
 # Register routers
 app.include_router(auth_router)
 app.include_router(employees_router)
+app.include_router(settings_router)
+app.include_router(chat_router)
 
 
 @app.get("/api/health")
