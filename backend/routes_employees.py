@@ -24,6 +24,7 @@ class EmployeeUpdate(BaseModel):
     role: Optional[str] = None
     instructions: Optional[str] = None
     model: Optional[str] = None
+    starred: Optional[bool] = None
 
 
 class EmployeeResponse(BaseModel):
@@ -33,6 +34,7 @@ class EmployeeResponse(BaseModel):
     instructions: Optional[str]
     model: str
     is_default: bool
+    starred: bool
 
     class Config:
         from_attributes = True
@@ -59,7 +61,8 @@ async def list_employees(
             "role": emp.role,
             "instructions": emp.instructions,
             "model": emp.model,
-            "is_default": emp.is_default
+            "is_default": emp.is_default,
+            "starred": emp.starred or False
         }
         for emp in employees
     ]
@@ -92,7 +95,8 @@ async def create_employee(
         "role": employee.role,
         "instructions": employee.instructions,
         "model": employee.model,
-        "is_default": employee.is_default
+        "is_default": employee.is_default,
+        "starred": employee.starred or False
     }
 
 
@@ -123,7 +127,8 @@ async def get_employee(
         "role": employee.role,
         "instructions": employee.instructions,
         "model": employee.model,
-        "is_default": employee.is_default
+        "is_default": employee.is_default,
+        "starred": employee.starred or False
     }
 
 
@@ -165,6 +170,8 @@ async def update_employee(
         employee.instructions = data.instructions
     if data.model is not None:
         employee.model = data.model
+    if data.starred is not None:
+        employee.starred = data.starred
 
     await db.commit()
     await db.refresh(employee)
@@ -175,7 +182,8 @@ async def update_employee(
         "role": employee.role,
         "instructions": employee.instructions,
         "model": employee.model,
-        "is_default": employee.is_default
+        "is_default": employee.is_default,
+        "starred": employee.starred or False
     }
 
 

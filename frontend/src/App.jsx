@@ -559,6 +559,100 @@ function App() {
     showToast('Employee configuration exported', 'success')
   }
 
+  // Toggle star on project
+  const handleToggleProjectStar = async (projectId, e) => {
+    e.stopPropagation()
+    const project = projects.find(p => p.id === projectId)
+    if (!project) return
+    try {
+      const res = await fetch(`/api/projects/${projectId}`, {
+        method: 'PUT',
+        headers: API_HEADERS(),
+        body: JSON.stringify({ starred: !project.starred })
+      })
+      if (res.ok) {
+        fetchProjects()
+      }
+    } catch { showToast('Failed to update', 'error') }
+  }
+
+  // Export all memories
+  const handleExportMemories = () => {
+    if (memories.length === 0) return
+    const exportData = {
+      version: '1.0',
+      exportedAt: new Date().toISOString(),
+      memories: memories.map(m => ({
+        content: m.content,
+        employee_name: m.employee_name || null,
+        project_name: m.project_name || null
+      }))
+    }
+    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' })
+    const url = window.URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `silentpartner-memories-${new Date().toISOString().split('T')[0]}.json`
+    document.body.appendChild(a)
+    a.click()
+    window.URL.revokeObjectURL(url)
+    document.body.removeChild(a)
+    showToast(`Exported ${memories.length} memories`, 'success')
+  }
+
+  // Import memories from file
+  const handleImportMemories = async (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = async (event) => {
+      try {
+        const data = JSON.parse(event.target.result)
+        if (!data.memories || !Array.isArray(data.memories)) {
+          showToast('Invalid memories file format', 'error')
+          return
+        }
+        let imported = 0
+        for (const m of data.memories) {
+          if (!m.content) continue
+          const res = await fetch('/api/memories', {
+            method: 'POST',
+            headers: API_HEADERS(),
+            body: JSON.stringify({
+              content: m.content,
+              employee_id: null,
+              project_id: null
+            })
+          })
+          if (res.ok) imported++
+        }
+        fetchMemories()
+        showToast(`Imported ${imported} memories`, 'success')
+      } catch {
+        showToast('Failed to parse memories file', 'error')
+      }
+    }
+    reader.readAsText(file)
+    e.target.value = ''
+  }
+
+  // Toggle star on employee (DM)
+  const handleToggleEmployeeStar = async (employeeId, e) => {
+    e.stopPropagation()
+    const employee = employees.find(emp => emp.id === employeeId)
+    if (!employee) return
+    try {
+      const res = await fetch(`/api/employees/${employeeId}`, {
+        method: 'PUT',
+        headers: API_HEADERS(),
+        body: JSON.stringify({ starred: !employee.starred })
+      })
+      if (res.ok) {
+        fetchEmployees()
+      }
+    } catch { showToast('Failed to update', 'error') }
+  }
+
   // Import employee configuration
   const handleImportEmployee = (e) => {
     const file = e.target.files?.[0]
@@ -921,7 +1015,9 @@ function App() {
           <span>Projects</span>
           <button onClick={() => { setShowProjectModal(true); setEditingProject(null); setProjectForm({ name: '', description: '', status: 'active' }) }} style={styles.addBtn}>+</button>
         </div>
-        {projects.map(p => (
+        {projects
+          .sort((a, b) => (b.starred ? 1 : 0) - (a.starred ? 1 : 0))
+          .map(p => (
           <div
             key={p.id}
             onClick={() => setActiveChannel({ type: 'project', id: p.id, name: p.name })}
@@ -929,6 +1025,13 @@ function App() {
             style={{ ...styles.channel, ...(activeChannel?.type === 'project' && activeChannel?.id === p.id ? styles.channelActive : {}), opacity: p.status === 'archived' ? 0.5 : 1 }}
             className="sidebar-channel"
           >
+            <span
+              onClick={(e) => handleToggleProjectStar(p.id, e)}
+              style={{ cursor: 'pointer', color: p.starred ? '#ffc107' : '#555', fontSize: '12px' }}
+              title={p.starred ? 'Unstar' : 'Star'}
+            >
+              {p.starred ? '★' : '☆'}
+            </span>
             <span style={{ color: '#999' }}>#</span>
             <span style={{ flex: 1 }}>{p.name}</span>
             {p.status === 'completed' && <span style={{ fontSize: '10px', color: '#28a745' }} title="Completed">✓</span>}
@@ -941,7 +1044,9 @@ function App() {
           <span>Direct Messages</span>
           <button onClick={() => { setShowEmployeeModal(true); setEditingEmployee(null); setEmployeeForm({ name: '', role: '', instructions: '', model: 'gpt-4' }) }} style={styles.addBtn}>+</button>
         </div>
-        {employees.map(e => (
+        {employees
+          .sort((a, b) => (b.starred ? 1 : 0) - (a.starred ? 1 : 0))
+          .map(e => (
           <div
             key={e.id}
             onClick={() => setActiveChannel({ type: 'dm', id: e.id, name: e.name })}
@@ -950,10 +1055,17 @@ function App() {
             className="sidebar-channel"
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%' }}>
+              <span
+                onClick={(ev) => handleToggleEmployeeStar(e.id, ev)}
+                style={{ cursor: 'pointer', color: e.starred ? '#ffc107' : '#555', fontSize: '12px' }}
+                title={e.starred ? 'Unstar' : 'Star'}
+              >
+                {e.starred ? '★' : '☆'}
+              </span>
               <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#2bac76', flexShrink: 0 }}></span>
-              <span style={{ fontWeight: 500 }}>{e.name}</span>
+              <span style={{ fontWeight: 500, flex: 1 }}>{e.name}</span>
             </div>
-            {e.role && <div style={{ color: '#999', fontSize: '11px', paddingLeft: '18px' }}>{e.role}</div>}
+            {e.role && <div style={{ color: '#999', fontSize: '11px', paddingLeft: '30px' }}>{e.role}</div>}
           </div>
         ))}
 
@@ -1122,14 +1234,27 @@ function App() {
 
               {/* Memories Section */}
               <div>
-                <h2 style={{ color: '#333', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  Memories
-                  {memories.length > 0 && (
-                    <span style={{ fontSize: '12px', padding: '4px 10px', background: '#e3f2fd', color: '#1565c0', borderRadius: '12px' }}>
-                      {memories.length} saved
-                    </span>
-                  )}
-                </h2>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+                  <h2 style={{ color: '#333', margin: 0, display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    Memories
+                    {memories.length > 0 && (
+                      <span style={{ fontSize: '12px', padding: '4px 10px', background: '#e3f2fd', color: '#1565c0', borderRadius: '12px' }}>
+                        {memories.length} saved
+                      </span>
+                    )}
+                  </h2>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    {memories.length > 0 && (
+                      <button onClick={handleExportMemories} style={{ ...styles.btn, background: '#17a2b8', color: '#fff', fontSize: '12px' }}>
+                        Export All
+                      </button>
+                    )}
+                    <label style={{ ...styles.btn, background: '#6f42c1', color: '#fff', fontSize: '12px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', margin: 0 }}>
+                      Import
+                      <input type="file" accept=".json" onChange={handleImportMemories} style={{ display: 'none' }} />
+                    </label>
+                  </div>
+                </div>
                 <p style={{ color: '#666', fontSize: '14px', marginBottom: '24px', lineHeight: 1.6 }}>
                   Memories are facts that your AI employees will remember across all conversations. They help personalize responses and maintain context about you, your business, and your preferences.
                 </p>
@@ -1247,8 +1372,18 @@ function App() {
           <>
             <div style={styles.header} className="chat-header">
               <div>
-                <strong>{activeChannel.type === 'project' ? '#' : ''}{activeChannel.name}</strong>
-                {activeChannel.type === 'project' && <span style={{ color: '#999', marginLeft: '10px', fontSize: '14px' }}>Use @name to mention an employee</span>}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <strong>{activeChannel.type === 'project' ? '#' : ''}{activeChannel.name}</strong>
+                  {activeChannel.type === 'project' && <span style={{ color: '#999', fontSize: '14px' }}>Use @name to mention an employee</span>}
+                </div>
+                {activeChannel.type === 'project' && (() => {
+                  const project = projects.find(p => p.id === activeChannel.id)
+                  return project?.description ? (
+                    <div style={{ fontSize: '12px', color: '#888', marginTop: '2px', maxWidth: '400px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={project.description}>
+                      {project.description}
+                    </div>
+                  ) : null
+                })()}
               </div>
               <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }} className="chat-header-buttons">
                 {messages.length > 0 && (() => {

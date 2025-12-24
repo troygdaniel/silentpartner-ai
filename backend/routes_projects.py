@@ -21,6 +21,7 @@ class ProjectUpdate(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
     status: Optional[str] = None
+    starred: Optional[bool] = None
 
 
 class ProjectResponse(BaseModel):
@@ -28,6 +29,7 @@ class ProjectResponse(BaseModel):
     name: str
     description: Optional[str]
     status: str
+    starred: bool
     created_at: str
 
     class Config:
@@ -53,6 +55,7 @@ async def list_projects(
             "name": p.name,
             "description": p.description,
             "status": p.status,
+            "starred": p.starred or False,
             "created_at": p.created_at.isoformat() if p.created_at else None
         }
         for p in projects
@@ -82,6 +85,7 @@ async def create_project(
         "name": new_project.name,
         "description": new_project.description,
         "status": new_project.status,
+        "starred": new_project.starred or False,
         "created_at": new_project.created_at.isoformat() if new_project.created_at else None
     }
 
@@ -108,6 +112,7 @@ async def get_project(
         "name": project.name,
         "description": project.description,
         "status": project.status,
+        "starred": project.starred or False,
         "created_at": project.created_at.isoformat() if project.created_at else None
     }
 
@@ -138,6 +143,8 @@ async def update_project(
         if update.status not in ["active", "completed", "archived"]:
             raise HTTPException(status_code=400, detail="Invalid status")
         project.status = update.status
+    if update.starred is not None:
+        project.starred = update.starred
 
     await db.commit()
     await db.refresh(project)
@@ -147,6 +154,7 @@ async def update_project(
         "name": project.name,
         "description": project.description,
         "status": project.status,
+        "starred": project.starred or False,
         "created_at": project.created_at.isoformat() if project.created_at else None
     }
 

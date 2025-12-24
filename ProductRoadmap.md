@@ -76,7 +76,7 @@ This roadmap outlines planned features and improvements, organized into iterativ
 - [x] Delete individual memories from UI ✅
 - [ ] Memory categories/tags
 - [x] Memory search ✅
-- [ ] Bulk memory import/export
+- [x] Bulk memory import/export ✅
 
 ---
 
@@ -86,13 +86,13 @@ This roadmap outlines planned features and improvements, organized into iterativ
 
 ### 3.1 Project Enhancements
 - [x] Project status tracking (active, on-hold, completed) ✅
-- [ ] Project descriptions visible in UI
+- [x] Project descriptions visible in UI ✅
 - [ ] Pin important messages in channels
 - [ ] Project-specific employee assignments
 
 ### 3.2 Conversation Organization
 - [x] Search across all conversations ✅
-- [ ] Star/bookmark important conversations
+- [x] Star/bookmark important conversations ✅
 - [ ] Conversation tagging
 - [ ] Archive old conversations
 

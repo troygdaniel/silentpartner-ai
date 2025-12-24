@@ -36,6 +36,7 @@ class Employee(Base):
     instructions = Column(Text, nullable=True)  # Custom instructions for this employee
     model = Column(String, default="gpt-4")  # AI model to use
     is_default = Column(Boolean, default=False)  # True for the default PM (undeletable)
+    starred = Column(Boolean, default=False)  # Starred/bookmarked conversation
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -67,6 +68,7 @@ class Project(Base):
     name = Column(String, nullable=False)
     description = Column(Text, nullable=True)
     status = Column(String, default="active")  # active, completed, archived
+    starred = Column(Boolean, default=False)  # Starred/bookmarked conversation
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
