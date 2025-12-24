@@ -54,17 +54,13 @@ async def run_migrations():
     if engine:
         async with engine.begin() as conn:
             # Add columns if they don't exist (Increment 6)
-            await conn.execute(text("""
-                DO $$
-                BEGIN
-                    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='openai_api_key') THEN
-                        ALTER TABLE users ADD COLUMN openai_api_key VARCHAR;
-                    END IF;
-                    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='anthropic_api_key') THEN
-                        ALTER TABLE users ADD COLUMN anthropic_api_key VARCHAR;
-                    END IF;
-                END $$;
-            """))
+            # Use ADD COLUMN IF NOT EXISTS (PostgreSQL 9.6+)
+            await conn.execute(text(
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS openai_api_key VARCHAR"
+            ))
+            await conn.execute(text(
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS anthropic_api_key VARCHAR"
+            ))
             # Create memories table if it doesn't exist (Increment 7)
             await conn.execute(text("""
                 CREATE TABLE IF NOT EXISTS memories (
