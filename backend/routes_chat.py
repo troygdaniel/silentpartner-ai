@@ -9,9 +9,9 @@ import json
 
 from auth import require_auth
 from database import get_db
-from models import User, Employee
+from models import User, Employee, Project, ProjectFile
 from crypto import decrypt_api_key
-from routes_memory import get_memories_for_employee
+from routes_memory import get_memories_for_employee, get_memories_for_project
 from routes_files import get_files_for_context
 
 router = APIRouter(prefix="/api/chat", tags=["chat"])
@@ -25,6 +25,7 @@ class ChatMessage(BaseModel):
 class ChatRequest(BaseModel):
     employee_id: str
     messages: List[ChatMessage]
+    project_id: Optional[str] = None  # For project-scoped chat
 
 
 def get_provider_for_model(model: str) -> str:
@@ -143,7 +144,8 @@ async def chat(
     api_messages = [{"role": m.role, "content": m.content} for m in request.messages]
 
     # Get memories and build system prompt
-    memories = await get_memories_for_employee(db, user_id, employee.id)
+    project_id = UUID(request.project_id) if request.project_id else None
+    memories = await get_memories_for_employee(db, user_id, employee.id, project_id)
     system_prompt = employee.instructions or ""
 
     if memories:
@@ -151,12 +153,25 @@ async def chat(
         system_prompt = system_prompt + memory_section if system_prompt else memory_section.strip()
 
     # Get uploaded files and add to context
-    files = get_files_for_context(user["sub"], request.employee_id)
-    if files:
-        file_section = "\n\n## Uploaded Files:\n"
-        for f in files:
-            file_section += f"\n### {f['filename']}\n```\n{f['content']}\n```\n"
-        system_prompt = system_prompt + file_section if system_prompt else file_section.strip()
+    # For project chat, use project files; for DM, use session files
+    if project_id:
+        result = await db.execute(
+            select(ProjectFile)
+            .where(ProjectFile.project_id == project_id, ProjectFile.owner_id == user_id)
+        )
+        project_files = result.scalars().all()
+        if project_files:
+            file_section = "\n\n## Project Files:\n"
+            for f in project_files:
+                file_section += f"\n### {f.filename}\n```\n{f.content}\n```\n"
+            system_prompt = system_prompt + file_section if system_prompt else file_section.strip()
+    else:
+        files = get_files_for_context(user["sub"], request.employee_id)
+        if files:
+            file_section = "\n\n## Uploaded Files:\n"
+            for f in files:
+                file_section += f"\n### {f['filename']}\n```\n{f['content']}\n```\n"
+            system_prompt = system_prompt + file_section if system_prompt else file_section.strip()
 
     # Stream response
     if provider == "openai":

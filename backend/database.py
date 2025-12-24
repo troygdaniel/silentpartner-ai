@@ -74,3 +74,54 @@ async def run_migrations():
             """))
             await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_memories_owner_id ON memories(owner_id)"))
             await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_memories_employee_id ON memories(employee_id)"))
+
+            # Create projects table first (Increment 9) - must be before memories references it
+            await conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS projects (
+                    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                    owner_id UUID NOT NULL REFERENCES users(id),
+                    name VARCHAR NOT NULL,
+                    description TEXT,
+                    status VARCHAR DEFAULT 'active',
+                    created_at TIMESTAMP DEFAULT NOW(),
+                    updated_at TIMESTAMP DEFAULT NOW()
+                )
+            """))
+            await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_projects_owner_id ON projects(owner_id)"))
+
+            # Add project_id to memories table (Increment 9)
+            await conn.execute(text(
+                "ALTER TABLE memories ADD COLUMN IF NOT EXISTS project_id UUID REFERENCES projects(id)"
+            ))
+            await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_memories_project_id ON memories(project_id)"))
+
+            # Create messages table for persistent chat history (Increment 9)
+            await conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS messages (
+                    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                    owner_id UUID NOT NULL REFERENCES users(id),
+                    project_id UUID REFERENCES projects(id),
+                    employee_id UUID REFERENCES employees(id),
+                    role VARCHAR NOT NULL,
+                    content TEXT NOT NULL,
+                    created_at TIMESTAMP DEFAULT NOW()
+                )
+            """))
+            await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_messages_owner_id ON messages(owner_id)"))
+            await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_messages_project_id ON messages(project_id)"))
+            await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_messages_employee_id ON messages(employee_id)"))
+
+            # Create project_files table for persistent file storage (Increment 9)
+            await conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS project_files (
+                    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                    project_id UUID NOT NULL REFERENCES projects(id),
+                    owner_id UUID NOT NULL REFERENCES users(id),
+                    filename VARCHAR NOT NULL,
+                    content TEXT NOT NULL,
+                    size INTEGER NOT NULL,
+                    created_at TIMESTAMP DEFAULT NOW()
+                )
+            """))
+            await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_project_files_project_id ON project_files(project_id)"))
+            await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_project_files_owner_id ON project_files(owner_id)"))

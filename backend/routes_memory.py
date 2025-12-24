@@ -8,7 +8,7 @@ from datetime import datetime
 
 from auth import require_auth
 from database import get_db
-from models import Memory, Employee
+from models import Memory, Employee, Project
 
 router = APIRouter(prefix="/api/memories", tags=["memories"])
 
@@ -16,6 +16,7 @@ router = APIRouter(prefix="/api/memories", tags=["memories"])
 class MemoryCreate(BaseModel):
     content: str
     employee_id: Optional[str] = None  # NULL = shared memory
+    project_id: Optional[str] = None  # NULL = not project-scoped
 
 
 class MemoryUpdate(BaseModel):
@@ -27,6 +28,8 @@ class MemoryResponse(BaseModel):
     content: str
     employee_id: Optional[str]
     employee_name: Optional[str]
+    project_id: Optional[str]
+    project_name: Optional[str]
     created_at: datetime
     updated_at: datetime
 
@@ -37,29 +40,27 @@ class MemoryResponse(BaseModel):
 @router.get("")
 async def list_memories(
     employee_id: Optional[str] = None,
+    project_id: Optional[str] = None,
     user: dict = Depends(require_auth),
     db: AsyncSession = Depends(get_db)
 ) -> List[MemoryResponse]:
-    """List memories. If employee_id provided, returns role-specific memories for that employee.
-    Otherwise returns shared memories (employee_id is NULL)."""
+    """List memories. Supports filtering by employee_id and/or project_id."""
     user_id = UUID(user["sub"])
 
+    query = (
+        select(Memory, Employee.name, Project.name)
+        .outerjoin(Employee, Memory.employee_id == Employee.id)
+        .outerjoin(Project, Memory.project_id == Project.id)
+        .where(Memory.owner_id == user_id)
+    )
+
     if employee_id:
-        # Role-specific memories
-        result = await db.execute(
-            select(Memory, Employee.name)
-            .outerjoin(Employee, Memory.employee_id == Employee.id)
-            .where(Memory.owner_id == user_id, Memory.employee_id == UUID(employee_id))
-            .order_by(Memory.created_at.desc())
-        )
-    else:
-        # Shared memories (employee_id is NULL)
-        result = await db.execute(
-            select(Memory, Employee.name)
-            .outerjoin(Employee, Memory.employee_id == Employee.id)
-            .where(Memory.owner_id == user_id, Memory.employee_id.is_(None))
-            .order_by(Memory.created_at.desc())
-        )
+        query = query.where(Memory.employee_id == UUID(employee_id))
+    if project_id:
+        query = query.where(Memory.project_id == UUID(project_id))
+
+    query = query.order_by(Memory.created_at.desc())
+    result = await db.execute(query)
 
     rows = result.all()
     return [
@@ -68,10 +69,12 @@ async def list_memories(
             content=memory.content,
             employee_id=str(memory.employee_id) if memory.employee_id else None,
             employee_name=emp_name,
+            project_id=str(memory.project_id) if memory.project_id else None,
+            project_name=proj_name,
             created_at=memory.created_at,
             updated_at=memory.updated_at
         )
-        for memory, emp_name in rows
+        for memory, emp_name, proj_name in rows
     ]
 
 
@@ -80,12 +83,13 @@ async def list_all_memories(
     user: dict = Depends(require_auth),
     db: AsyncSession = Depends(get_db)
 ) -> List[MemoryResponse]:
-    """List all memories (shared + role-specific) for UI display."""
+    """List all memories (shared + role-specific + project-scoped) for UI display."""
     user_id = UUID(user["sub"])
 
     result = await db.execute(
-        select(Memory, Employee.name)
+        select(Memory, Employee.name, Project.name)
         .outerjoin(Employee, Memory.employee_id == Employee.id)
+        .outerjoin(Project, Memory.project_id == Project.id)
         .where(Memory.owner_id == user_id)
         .order_by(Memory.created_at.desc())
     )
@@ -97,10 +101,12 @@ async def list_all_memories(
             content=memory.content,
             employee_id=str(memory.employee_id) if memory.employee_id else None,
             employee_name=emp_name,
+            project_id=str(memory.project_id) if memory.project_id else None,
+            project_name=proj_name,
             created_at=memory.created_at,
             updated_at=memory.updated_at
         )
-        for memory, emp_name in rows
+        for memory, emp_name, proj_name in rows
     ]
 
 
@@ -110,11 +116,13 @@ async def create_memory(
     user: dict = Depends(require_auth),
     db: AsyncSession = Depends(get_db)
 ) -> MemoryResponse:
-    """Create a new memory. If employee_id is provided, it's role-specific. Otherwise shared."""
+    """Create a new memory. Can be shared, employee-specific, or project-scoped."""
     user_id = UUID(user["sub"])
 
     employee_uuid = None
     employee_name = None
+    project_uuid = None
+    project_name = None
 
     if data.employee_id:
         # Verify employee belongs to user
@@ -128,9 +136,22 @@ async def create_memory(
         employee_uuid = employee.id
         employee_name = employee.name
 
+    if data.project_id:
+        # Verify project belongs to user
+        result = await db.execute(
+            select(Project)
+            .where(Project.id == UUID(data.project_id), Project.owner_id == user_id)
+        )
+        project = result.scalar_one_or_none()
+        if project is None:
+            raise HTTPException(status_code=404, detail="Project not found")
+        project_uuid = project.id
+        project_name = project.name
+
     memory = Memory(
         owner_id=user_id,
         employee_id=employee_uuid,
+        project_id=project_uuid,
         content=data.content
     )
     db.add(memory)
@@ -142,6 +163,8 @@ async def create_memory(
         content=memory.content,
         employee_id=str(memory.employee_id) if memory.employee_id else None,
         employee_name=employee_name,
+        project_id=str(memory.project_id) if memory.project_id else None,
+        project_name=project_name,
         created_at=memory.created_at,
         updated_at=memory.updated_at
     )
@@ -158,8 +181,9 @@ async def update_memory(
     user_id = UUID(user["sub"])
 
     result = await db.execute(
-        select(Memory, Employee.name)
+        select(Memory, Employee.name, Project.name)
         .outerjoin(Employee, Memory.employee_id == Employee.id)
+        .outerjoin(Project, Memory.project_id == Project.id)
         .where(Memory.id == UUID(memory_id), Memory.owner_id == user_id)
     )
     row = result.first()
@@ -167,7 +191,7 @@ async def update_memory(
     if row is None:
         raise HTTPException(status_code=404, detail="Memory not found")
 
-    memory, employee_name = row
+    memory, employee_name, project_name = row
     memory.content = data.content
     await db.commit()
     await db.refresh(memory)
@@ -177,6 +201,8 @@ async def update_memory(
         content=memory.content,
         employee_id=str(memory.employee_id) if memory.employee_id else None,
         employee_name=employee_name,
+        project_id=str(memory.project_id) if memory.project_id else None,
+        project_name=project_name,
         created_at=memory.created_at,
         updated_at=memory.updated_at
     )
@@ -206,13 +232,17 @@ async def delete_memory(
     return {"status": "ok"}
 
 
-async def get_memories_for_employee(db: AsyncSession, user_id: UUID, employee_id: UUID) -> List[str]:
-    """Get all relevant memories for an employee (shared + role-specific).
+async def get_memories_for_employee(db: AsyncSession, user_id: UUID, employee_id: UUID, project_id: UUID = None) -> List[str]:
+    """Get all relevant memories for an employee (shared + role-specific + project-scoped).
     Used by chat to inject into context."""
-    # Get shared memories
+    # Get shared memories (no employee, no project)
     shared_result = await db.execute(
         select(Memory.content)
-        .where(Memory.owner_id == user_id, Memory.employee_id.is_(None))
+        .where(
+            Memory.owner_id == user_id,
+            Memory.employee_id.is_(None),
+            Memory.project_id.is_(None)
+        )
         .order_by(Memory.created_at)
     )
     shared_memories = [row[0] for row in shared_result.all()]
@@ -225,4 +255,40 @@ async def get_memories_for_employee(db: AsyncSession, user_id: UUID, employee_id
     )
     role_memories = [row[0] for row in role_result.all()]
 
-    return shared_memories + role_memories
+    # Get project-specific memories if project_id provided
+    project_memories = []
+    if project_id:
+        project_result = await db.execute(
+            select(Memory.content)
+            .where(Memory.owner_id == user_id, Memory.project_id == project_id)
+            .order_by(Memory.created_at)
+        )
+        project_memories = [row[0] for row in project_result.all()]
+
+    return shared_memories + role_memories + project_memories
+
+
+async def get_memories_for_project(db: AsyncSession, user_id: UUID, project_id: UUID) -> List[str]:
+    """Get all memories relevant to a project (shared + project-scoped).
+    Used by project chat to inject into context."""
+    # Get shared memories
+    shared_result = await db.execute(
+        select(Memory.content)
+        .where(
+            Memory.owner_id == user_id,
+            Memory.employee_id.is_(None),
+            Memory.project_id.is_(None)
+        )
+        .order_by(Memory.created_at)
+    )
+    shared_memories = [row[0] for row in shared_result.all()]
+
+    # Get project-specific memories
+    project_result = await db.execute(
+        select(Memory.content)
+        .where(Memory.owner_id == user_id, Memory.project_id == project_id)
+        .order_by(Memory.created_at)
+    )
+    project_memories = [row[0] for row in project_result.all()]
+
+    return shared_memories + project_memories

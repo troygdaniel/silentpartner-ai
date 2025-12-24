@@ -12,6 +12,9 @@ from routes_settings import router as settings_router
 from routes_chat import router as chat_router
 from routes_memory import router as memory_router
 from routes_files import router as files_router
+from routes_projects import router as projects_router
+from routes_messages import router as messages_router
+from routes_project_files import router as project_files_router
 import models  # noqa: F401 - Import to register models with Base
 
 
@@ -33,6 +36,9 @@ app.include_router(settings_router)
 app.include_router(chat_router)
 app.include_router(memory_router)
 app.include_router(files_router)
+app.include_router(projects_router)
+app.include_router(messages_router)
+app.include_router(project_files_router)
 
 
 @app.get("/api/health")
