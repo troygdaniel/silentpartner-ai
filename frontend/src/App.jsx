@@ -1475,134 +1475,138 @@ function App() {
 
       {/* Sidebar */}
       <div style={styles.sidebar}>
+        {/* Fixed Header */}
         <div style={styles.sidebarHeader} onClick={() => { setActiveChannel(null); setShowSettings(false); setMessages([]); setShowSearchResults(false) }}>SilentPartner</div>
 
-        {/* Search */}
-        <div style={{ padding: '12px 12px', position: 'relative' }}>
-          <input
-            type="text"
-            placeholder="Search conversations..."
-            value={conversationSearch}
-            onChange={(e) => handleSearchConversations(e.target.value)}
-            style={{ width: '100%', padding: '10px 12px', border: `1px solid ${T.border.primary}`, borderRadius: T.radius.md, background: T.bg.tertiary, color: T.text.primary, fontSize: '13px', boxSizing: 'border-box', outline: 'none', transition: T.transition.fast }}
-            onFocus={e => e.target.style.borderColor = T.accent.primary}
-            onBlur={e => e.target.style.borderColor = T.border.primary}
-          />
-          {showSearchResults && (
-            <div style={{ position: 'absolute', top: '100%', left: '12px', right: '12px', background: T.bg.elevated, border: `1px solid ${T.border.primary}`, borderRadius: T.radius.md, maxHeight: '300px', overflow: 'auto', zIndex: 100, boxShadow: T.shadow.lg }}>
-              {searching ? (
-                <div style={{ padding: '16px', color: T.text.tertiary, textAlign: 'center' }}>Searching...</div>
-              ) : searchResults.length === 0 ? (
-                <div style={{ padding: '16px', color: T.text.tertiary, textAlign: 'center' }}>No results found</div>
-              ) : (
-                searchResults.map(r => (
-                  <div
-                    key={r.id}
-                    onClick={() => handleSearchResultClick(r)}
-                    style={{ padding: '12px 14px', cursor: 'pointer', borderBottom: `1px solid ${T.border.subtle}`, transition: T.transition.fast }}
-                    onMouseEnter={(e) => e.currentTarget.style.background = T.bg.hover}
-                    onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-                  >
-                    <div style={{ fontSize: '11px', color: T.text.tertiary, marginBottom: '4px' }}>
-                      {r.project_name ? `#${r.project_name}` : r.employee_name || 'Unknown'} • {r.role}
+        {/* Scrollable Content Area */}
+        <div style={{ flex: 1, overflow: 'auto', display: 'flex', flexDirection: 'column' }}>
+          {/* Search */}
+          <div style={{ padding: '12px 12px', position: 'relative', flexShrink: 0 }}>
+            <input
+              type="text"
+              placeholder="Search conversations..."
+              value={conversationSearch}
+              onChange={(e) => handleSearchConversations(e.target.value)}
+              style={{ width: '100%', padding: '10px 12px', border: `1px solid ${T.border.primary}`, borderRadius: T.radius.md, background: T.bg.tertiary, color: T.text.primary, fontSize: '13px', boxSizing: 'border-box', outline: 'none', transition: T.transition.fast }}
+              onFocus={e => e.target.style.borderColor = T.accent.primary}
+              onBlur={e => e.target.style.borderColor = T.border.primary}
+            />
+            {showSearchResults && (
+              <div style={{ position: 'absolute', top: '100%', left: '12px', right: '12px', background: T.bg.elevated, border: `1px solid ${T.border.primary}`, borderRadius: T.radius.md, maxHeight: '300px', overflow: 'auto', zIndex: 100, boxShadow: T.shadow.lg }}>
+                {searching ? (
+                  <div style={{ padding: '16px', color: T.text.tertiary, textAlign: 'center' }}>Searching...</div>
+                ) : searchResults.length === 0 ? (
+                  <div style={{ padding: '16px', color: T.text.tertiary, textAlign: 'center' }}>No results found</div>
+                ) : (
+                  searchResults.map(r => (
+                    <div
+                      key={r.id}
+                      onClick={() => handleSearchResultClick(r)}
+                      style={{ padding: '12px 14px', cursor: 'pointer', borderBottom: `1px solid ${T.border.subtle}`, transition: T.transition.fast }}
+                      onMouseEnter={(e) => e.currentTarget.style.background = T.bg.hover}
+                      onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                    >
+                      <div style={{ fontSize: '11px', color: T.text.tertiary, marginBottom: '4px' }}>
+                        {r.project_name ? `#${r.project_name}` : r.employee_name || 'Unknown'} • {r.role}
+                      </div>
+                      <div style={{ fontSize: '13px', color: T.text.secondary, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {r.content.length > 80 ? r.content.slice(0, 80) + '...' : r.content}
+                      </div>
                     </div>
-                    <div style={{ fontSize: '13px', color: T.text.secondary, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      {r.content.length > 80 ? r.content.slice(0, 80) + '...' : r.content}
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          )}
-        </div>
+                  ))
+                )}
+              </div>
+            )}
+          </div>
 
-        {/* Projects */}
-        <div style={styles.sidebarSection}>
-          <span>Projects</span>
-          <button onClick={() => { setShowProjectModal(true); setEditingProject(null); setProjectForm({ name: '', description: '', status: 'active', instructions: '' }) }} style={styles.addBtn} onMouseOver={e => e.target.style.color = T.accent.primary} onMouseOut={e => e.target.style.color = T.text.tertiary}>+</button>
-        </div>
-        {projects
-          .sort((a, b) => (b.starred ? 1 : 0) - (a.starred ? 1 : 0))
-          .map(p => (
-          <div
-            key={p.id}
-            onClick={() => setActiveChannel({ type: 'project', id: p.id, name: p.name })}
-            onContextMenu={(e) => { e.preventDefault(); handleDeleteProject(p.id) }}
-            style={{ ...styles.channel, ...(activeChannel?.type === 'project' && activeChannel?.id === p.id ? styles.channelActive : {}), opacity: p.status === 'archived' ? 0.5 : 1 }}
-            className="sidebar-channel"
-            onMouseEnter={e => { if (!(activeChannel?.type === 'project' && activeChannel?.id === p.id)) e.currentTarget.style.background = T.bg.hover }}
-            onMouseLeave={e => { if (!(activeChannel?.type === 'project' && activeChannel?.id === p.id)) e.currentTarget.style.background = 'transparent' }}
-          >
-            <span
-              onClick={(e) => handleToggleProjectStar(p.id, e)}
-              style={{ cursor: 'pointer', color: p.starred ? T.accent.warning : T.text.tertiary, fontSize: '12px', transition: T.transition.fast }}
-              title={p.starred ? 'Unstar' : 'Star'}
-              role="button"
-              aria-label={p.starred ? 'Unstar project' : 'Star project'}
+          {/* Projects */}
+          <div style={styles.sidebarSection}>
+            <span>Projects</span>
+            <button onClick={() => { setShowProjectModal(true); setEditingProject(null); setProjectForm({ name: '', description: '', status: 'active', instructions: '' }) }} style={styles.addBtn} onMouseOver={e => e.target.style.color = T.accent.primary} onMouseOut={e => e.target.style.color = T.text.tertiary}>+</button>
+          </div>
+          {projects
+            .sort((a, b) => (b.starred ? 1 : 0) - (a.starred ? 1 : 0))
+            .map(p => (
+            <div
+              key={p.id}
+              onClick={() => setActiveChannel({ type: 'project', id: p.id, name: p.name })}
+              onContextMenu={(e) => { e.preventDefault(); handleDeleteProject(p.id) }}
+              style={{ ...styles.channel, ...(activeChannel?.type === 'project' && activeChannel?.id === p.id ? styles.channelActive : {}), opacity: p.status === 'archived' ? 0.5 : 1 }}
+              className="sidebar-channel"
+              onMouseEnter={e => { if (!(activeChannel?.type === 'project' && activeChannel?.id === p.id)) e.currentTarget.style.background = T.bg.hover }}
+              onMouseLeave={e => { if (!(activeChannel?.type === 'project' && activeChannel?.id === p.id)) e.currentTarget.style.background = 'transparent' }}
             >
-              {p.starred ? '★' : '☆'}
-            </span>
-            <span style={{ color: T.accent.primary, fontWeight: 500 }}>#</span>
-            <span style={{ flex: 1, color: T.text.primary }}>{p.name}</span>
-            {p.status === 'completed' && <span style={{ fontSize: '10px', color: T.accent.success }} title="Completed" aria-label="Project completed">✓</span>}
-            {p.status === 'archived' && <span style={{ fontSize: '10px', color: T.text.tertiary }} title="Archived" aria-label="Project archived">⊘</span>}
-          </div>
-        ))}
-
-        {/* Employees */}
-        <div style={{ ...styles.sidebarSection, marginTop: '20px' }}>
-          <span>Employees</span>
-          <div style={{ display: 'flex', gap: '4px' }}>
-            <button onClick={() => setShowArchived(!showArchived)} style={{ ...styles.addBtn, fontSize: '11px' }} title={showArchived ? 'Hide archived' : 'Show archived'} onMouseOver={e => e.target.style.color = T.accent.primary} onMouseOut={e => e.target.style.color = T.text.tertiary}>
-              {showArchived ? '◉' : '○'}
-            </button>
-            <button onClick={() => { setShowEmployeeModal(true); setEditingEmployee(null); setEmployeeForm({ name: '', role: '', instructions: '', model: 'gpt-4' }) }} style={styles.addBtn} onMouseOver={e => e.target.style.color = T.accent.primary} onMouseOut={e => e.target.style.color = T.text.tertiary}>+</button>
-          </div>
-        </div>
-        {employees
-          .filter(e => showArchived || !e.archived)
-          .sort((a, b) => (b.starred ? 1 : 0) - (a.starred ? 1 : 0))
-          .map(e => (
-          <div
-            key={e.id}
-            onClick={() => setActiveChannel({ type: 'dm', id: e.id, name: e.name })}
-            onContextMenu={(ev) => { ev.preventDefault(); if (!e.is_default) handleDeleteEmployee(e.id) }}
-            style={{ ...styles.channel, ...(activeChannel?.type === 'dm' && activeChannel?.id === e.id ? styles.channelActive : {}), flexDirection: 'column', alignItems: 'flex-start', gap: '2px', opacity: e.archived ? 0.5 : 1 }}
-            className="sidebar-channel"
-            onMouseEnter={ev => { if (!(activeChannel?.type === 'dm' && activeChannel?.id === e.id)) ev.currentTarget.style.background = T.bg.hover }}
-            onMouseLeave={ev => { if (!(activeChannel?.type === 'dm' && activeChannel?.id === e.id)) ev.currentTarget.style.background = 'transparent' }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%' }}>
               <span
-                onClick={(ev) => handleToggleEmployeeStar(e.id, ev)}
-                style={{ cursor: 'pointer', color: e.starred ? T.accent.warning : T.text.tertiary, fontSize: '12px', transition: T.transition.fast }}
-                title={e.starred ? 'Unstar' : 'Star'}
+                onClick={(e) => handleToggleProjectStar(p.id, e)}
+                style={{ cursor: 'pointer', color: p.starred ? T.accent.warning : T.text.tertiary, fontSize: '12px', transition: T.transition.fast }}
+                title={p.starred ? 'Unstar' : 'Star'}
                 role="button"
-                aria-label={e.starred ? 'Unstar employee' : 'Star employee'}
+                aria-label={p.starred ? 'Unstar project' : 'Star project'}
               >
-                {e.starred ? '★' : '☆'}
+                {p.starred ? '★' : '☆'}
               </span>
-              <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: e.archived ? T.text.tertiary : T.accent.success, flexShrink: 0 }} aria-label={e.archived ? 'Offline' : 'Online'}></span>
-              <span style={{ fontWeight: 500, flex: 1, color: T.text.primary }}>{e.name}</span>
-              {e.archived && <span style={{ fontSize: '10px', color: T.text.tertiary }} title="Archived" aria-label="Employee archived">⊘</span>}
-              <span
-                onClick={(ev) => handleToggleArchiveEmployee(e.id, ev)}
-                style={{ cursor: 'pointer', color: T.text.tertiary, fontSize: '11px', opacity: 0.6, transition: T.transition.fast }}
-                title={e.archived ? 'Unarchive' : 'Archive'}
-                role="button"
-                aria-label={e.archived ? 'Unarchive employee' : 'Archive employee'}
-                onMouseEnter={(ev) => { ev.currentTarget.style.opacity = '1'; ev.currentTarget.style.color = T.accent.primary }}
-                onMouseLeave={(ev) => { ev.currentTarget.style.opacity = '0.6'; ev.currentTarget.style.color = T.text.tertiary }}
-              >
-                {e.archived ? '↩' : '⊘'}
-              </span>
+              <span style={{ color: T.accent.primary, fontWeight: 500 }}>#</span>
+              <span style={{ flex: 1, color: T.text.primary }}>{p.name}</span>
+              {p.status === 'completed' && <span style={{ fontSize: '10px', color: T.accent.success }} title="Completed" aria-label="Project completed">✓</span>}
+              {p.status === 'archived' && <span style={{ fontSize: '10px', color: T.text.tertiary }} title="Archived" aria-label="Project archived">⊘</span>}
             </div>
-            {e.role && <div style={{ color: T.text.tertiary, fontSize: '11px', paddingLeft: '30px' }}>{e.role}</div>}
-          </div>
-        ))}
+          ))}
 
-        {/* Footer */}
-        <div style={{ marginTop: 'auto', padding: '15px', borderTop: `1px solid ${T.border.primary}` }}>
+          {/* Employees */}
+          <div style={{ ...styles.sidebarSection, marginTop: '20px' }}>
+            <span>Employees</span>
+            <div style={{ display: 'flex', gap: '4px' }}>
+              <button onClick={() => setShowArchived(!showArchived)} style={{ ...styles.addBtn, fontSize: '11px' }} title={showArchived ? 'Hide archived' : 'Show archived'} onMouseOver={e => e.target.style.color = T.accent.primary} onMouseOut={e => e.target.style.color = T.text.tertiary}>
+                {showArchived ? '◉' : '○'}
+              </button>
+              <button onClick={() => { setShowEmployeeModal(true); setEditingEmployee(null); setEmployeeForm({ name: '', role: '', instructions: '', model: 'gpt-4' }) }} style={styles.addBtn} onMouseOver={e => e.target.style.color = T.accent.primary} onMouseOut={e => e.target.style.color = T.text.tertiary}>+</button>
+            </div>
+          </div>
+          {employees
+            .filter(e => showArchived || !e.archived)
+            .sort((a, b) => (b.starred ? 1 : 0) - (a.starred ? 1 : 0))
+            .map(e => (
+            <div
+              key={e.id}
+              onClick={() => setActiveChannel({ type: 'dm', id: e.id, name: e.name })}
+              onContextMenu={(ev) => { ev.preventDefault(); if (!e.is_default) handleDeleteEmployee(e.id) }}
+              style={{ ...styles.channel, ...(activeChannel?.type === 'dm' && activeChannel?.id === e.id ? styles.channelActive : {}), flexDirection: 'column', alignItems: 'flex-start', gap: '2px', opacity: e.archived ? 0.5 : 1 }}
+              className="sidebar-channel"
+              onMouseEnter={ev => { if (!(activeChannel?.type === 'dm' && activeChannel?.id === e.id)) ev.currentTarget.style.background = T.bg.hover }}
+              onMouseLeave={ev => { if (!(activeChannel?.type === 'dm' && activeChannel?.id === e.id)) ev.currentTarget.style.background = 'transparent' }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%' }}>
+                <span
+                  onClick={(ev) => handleToggleEmployeeStar(e.id, ev)}
+                  style={{ cursor: 'pointer', color: e.starred ? T.accent.warning : T.text.tertiary, fontSize: '12px', transition: T.transition.fast }}
+                  title={e.starred ? 'Unstar' : 'Star'}
+                  role="button"
+                  aria-label={e.starred ? 'Unstar employee' : 'Star employee'}
+                >
+                  {e.starred ? '★' : '☆'}
+                </span>
+                <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: e.archived ? T.text.tertiary : T.accent.success, flexShrink: 0 }} aria-label={e.archived ? 'Offline' : 'Online'}></span>
+                <span style={{ fontWeight: 500, flex: 1, color: T.text.primary }}>{e.name}</span>
+                {e.archived && <span style={{ fontSize: '10px', color: T.text.tertiary }} title="Archived" aria-label="Employee archived">⊘</span>}
+                <span
+                  onClick={(ev) => handleToggleArchiveEmployee(e.id, ev)}
+                  style={{ cursor: 'pointer', color: T.text.tertiary, fontSize: '11px', opacity: 0.6, transition: T.transition.fast }}
+                  title={e.archived ? 'Unarchive' : 'Archive'}
+                  role="button"
+                  aria-label={e.archived ? 'Unarchive employee' : 'Archive employee'}
+                  onMouseEnter={(ev) => { ev.currentTarget.style.opacity = '1'; ev.currentTarget.style.color = T.accent.primary }}
+                  onMouseLeave={(ev) => { ev.currentTarget.style.opacity = '0.6'; ev.currentTarget.style.color = T.text.tertiary }}
+                >
+                  {e.archived ? '↩' : '⊘'}
+                </span>
+              </div>
+              {e.role && <div style={{ color: T.text.tertiary, fontSize: '11px', paddingLeft: '30px' }}>{e.role}</div>}
+            </div>
+          ))}
+        </div>
+
+        {/* Fixed Footer */}
+        <div style={{ flexShrink: 0, padding: '15px', borderTop: `1px solid ${T.border.primary}` }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
             <span style={{ width: '36px', height: '36px', borderRadius: T.radius.md, background: `linear-gradient(135deg, ${T.accent.primary}, ${T.accent.primaryHover})`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: T.text.onAccent, fontSize: '14px', fontWeight: 600 }}>
               {user.name?.[0] || 'U'}
