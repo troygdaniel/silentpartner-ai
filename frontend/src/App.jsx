@@ -268,6 +268,8 @@ function App() {
   const [filePreview, setFilePreview] = useState(null) // { file, content, name }
   const [freshContextFrom, setFreshContextFrom] = useState(null) // message index to start fresh from
   const [modelOverride, setModelOverride] = useState('') // Override employee's default model for this conversation
+  const [confirmDialog, setConfirmDialog] = useState(null) // { title, message, onConfirm }
+  const [mentionDropdown, setMentionDropdown] = useState({ show: false, matches: [], position: 0, selectedIndex: 0 })
 
   // Modal state
   const [showProjectModal, setShowProjectModal] = useState(false)
@@ -767,21 +769,28 @@ function App() {
   }
 
   // Clear chat history
-  const handleClearChat = async () => {
-    if (!activeChannel || !confirm('Clear all messages in this conversation?')) return
-    try {
-      const endpoint = activeChannel.type === 'project'
-        ? `/api/messages/project/${activeChannel.id}`
-        : `/api/messages/dm/${activeChannel.id}`
-      const res = await fetch(endpoint, { method: 'DELETE', headers: API_HEADERS() })
-      if (res.ok) {
-        setMessages([])
-        setFreshContextFrom(null)
-        showToast('Chat history cleared', 'success')
-      } else {
-        showToast('Failed to clear chat', 'error')
+  const handleClearChat = () => {
+    if (!activeChannel) return
+    setConfirmDialog({
+      title: 'Clear Chat History',
+      message: 'Are you sure you want to delete all messages in this conversation? This action cannot be undone.',
+      onConfirm: async () => {
+        try {
+          const endpoint = activeChannel.type === 'project'
+            ? `/api/messages/project/${activeChannel.id}`
+            : `/api/messages/dm/${activeChannel.id}`
+          const res = await fetch(endpoint, { method: 'DELETE', headers: API_HEADERS() })
+          if (res.ok) {
+            setMessages([])
+            setFreshContextFrom(null)
+            showToast('Chat history cleared', 'success')
+          } else {
+            showToast('Failed to clear chat', 'error')
+          }
+        } catch { showToast('Connection error', 'error') }
+        setConfirmDialog(null)
       }
-    } catch { showToast('Connection error', 'error') }
+    })
   }
 
   // Start fresh - clear context without deleting history
@@ -1147,9 +1156,111 @@ function App() {
     } catch (err) { showToast('Download error', 'error') }
   }
 
+  // @mention autocomplete handling
+  const handleChatInputChange = (e) => {
+    const value = e.target.value
+    setChatInput(value)
+
+    // Only show autocomplete in project channels
+    if (activeChannel?.type !== 'project') {
+      setMentionDropdown({ show: false, matches: [], position: 0, selectedIndex: 0 })
+      return
+    }
+
+    // Check if we're in the middle of typing a mention
+    const cursorPos = e.target.selectionStart
+    const textBeforeCursor = value.slice(0, cursorPos)
+    const mentionMatch = textBeforeCursor.match(/@(\w*)$/)
+
+    if (mentionMatch) {
+      const query = mentionMatch[1].toLowerCase()
+      const matches = employees.filter(emp =>
+        emp.name.toLowerCase().includes(query) ||
+        (emp.role && emp.role.toLowerCase().includes(query))
+      ).slice(0, 5)
+
+      if (matches.length > 0) {
+        setMentionDropdown({
+          show: true,
+          matches,
+          position: mentionMatch.index,
+          selectedIndex: 0
+        })
+      } else {
+        setMentionDropdown({ show: false, matches: [], position: 0, selectedIndex: 0 })
+      }
+    } else {
+      setMentionDropdown({ show: false, matches: [], position: 0, selectedIndex: 0 })
+    }
+  }
+
+  const handleMentionSelect = (employee) => {
+    const beforeMention = chatInput.slice(0, mentionDropdown.position)
+    const afterMention = chatInput.slice(mentionDropdown.position).replace(/@\w*/, '')
+    setChatInput(beforeMention + '@' + employee.name + ' ' + afterMention.trimStart())
+    setMentionDropdown({ show: false, matches: [], position: 0, selectedIndex: 0 })
+  }
+
+  const handleChatInputKeyDown = (e) => {
+    if (mentionDropdown.show) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault()
+        setMentionDropdown(prev => ({
+          ...prev,
+          selectedIndex: Math.min(prev.selectedIndex + 1, prev.matches.length - 1)
+        }))
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault()
+        setMentionDropdown(prev => ({
+          ...prev,
+          selectedIndex: Math.max(prev.selectedIndex - 1, 0)
+        }))
+      } else if (e.key === 'Enter' || e.key === 'Tab') {
+        e.preventDefault()
+        if (mentionDropdown.matches[mentionDropdown.selectedIndex]) {
+          handleMentionSelect(mentionDropdown.matches[mentionDropdown.selectedIndex])
+        }
+      } else if (e.key === 'Escape') {
+        setMentionDropdown({ show: false, matches: [], position: 0, selectedIndex: 0 })
+      }
+    } else if (e.key === 'Enter' && !e.shiftKey) {
+      sendMessage()
+    }
+  }
+
   // Chat
   const sendMessage = async () => {
     if (!chatInput.trim() || isStreaming || !activeChannel) return
+
+    // Determine which employee will respond
+    let targetEmployeeId = activeChannel.type === 'dm' ? activeChannel.id : null
+    if (activeChannel.type === 'project') {
+      const mentionMatch = chatInput.match(/@(\w+)/)
+      if (mentionMatch) {
+        const mentionedName = mentionMatch[1].toLowerCase()
+        const mentionedEmployee = employees.find(e => e.name.toLowerCase().includes(mentionedName))
+        if (mentionedEmployee) targetEmployeeId = mentionedEmployee.id
+      }
+      if (!targetEmployeeId && employees.length > 0) targetEmployeeId = employees[0].id
+    }
+
+    // Check if we have an employee
+    if (!targetEmployeeId) {
+      setChatError('No employee available to respond')
+      return
+    }
+
+    // Check if required API key is configured
+    const targetEmployee = employees.find(e => e.id === targetEmployeeId)
+    const effectiveModel = modelOverride || targetEmployee?.model || 'gpt-4'
+    const isAnthropicModel = effectiveModel.startsWith('claude')
+    const requiredKeyMissing = isAnthropicModel ? !apiKeys.has_anthropic_key : !apiKeys.has_openai_key
+
+    if (requiredKeyMissing) {
+      const provider = isAnthropicModel ? 'Anthropic' : 'OpenAI'
+      setChatError(`${provider} API key required. Go to Settings to add your ${provider} API key.`)
+      return
+    }
 
     const userMessage = { role: 'user', content: chatInput.trim() }
     const newMessages = [...messages, userMessage]
@@ -1170,25 +1281,8 @@ function App() {
       })
     })
 
-    // For project channels, parse @mention to get employee
-    let employeeId = activeChannel.type === 'dm' ? activeChannel.id : null
-    if (activeChannel.type === 'project') {
-      // Look for @mention in the message
-      const mentionMatch = chatInput.match(/@(\w+)/)
-      if (mentionMatch) {
-        const mentionedName = mentionMatch[1].toLowerCase()
-        const mentionedEmployee = employees.find(e => e.name.toLowerCase().includes(mentionedName))
-        if (mentionedEmployee) employeeId = mentionedEmployee.id
-      }
-      // If no mention, use first employee as default
-      if (!employeeId && employees.length > 0) employeeId = employees[0].id
-    }
-
-    if (!employeeId) {
-      setChatError('No employee available to respond')
-      setIsStreaming(false)
-      return
-    }
+    // Use the already-determined employee ID
+    let employeeId = targetEmployeeId
 
     try {
       // If fresh context is active, only send messages from that point onwards
@@ -1403,9 +1497,9 @@ function App() {
           </div>
         ))}
 
-        {/* Direct Messages */}
+        {/* Employees */}
         <div style={{ ...styles.sidebarSection, marginTop: '20px' }}>
-          <span>Direct Messages</span>
+          <span>Employees</span>
           <div style={{ display: 'flex', gap: '4px' }}>
             <button onClick={() => setShowArchived(!showArchived)} style={{ ...styles.addBtn, fontSize: '11px' }} title={showArchived ? 'Hide archived' : 'Show archived'} onMouseOver={e => e.target.style.color = T.accent.primary} onMouseOut={e => e.target.style.color = T.text.tertiary}>
               {showArchived ? '◉' : '○'}
@@ -1623,27 +1717,27 @@ function App() {
               {/* Memories Section */}
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
-                  <h2 style={{ color: '#333', margin: 0, display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <h2 style={{ color: T.text.primary, margin: 0, display: 'flex', alignItems: 'center', gap: '10px', fontSize: '20px', fontWeight: 600 }}>
                     Memories
                     {memories.length > 0 && (
-                      <span style={{ fontSize: '12px', padding: '4px 10px', background: '#e3f2fd', color: '#1565c0', borderRadius: '12px' }}>
+                      <span style={{ fontSize: '12px', padding: '4px 10px', background: T.accent.primaryMuted, color: T.accent.primary, borderRadius: '12px' }}>
                         {memories.length} saved
                       </span>
                     )}
                   </h2>
                   <div style={{ display: 'flex', gap: '8px' }}>
                     {memories.length > 0 && (
-                      <button onClick={handleExportMemories} style={{ ...styles.btn, background: '#17a2b8', color: '#fff', fontSize: '12px' }}>
+                      <button onClick={handleExportMemories} style={{ ...styles.btn, background: T.accent.infoMuted, color: T.accent.info, border: `1px solid ${T.accent.info}40`, fontSize: '12px' }}>
                         Export All
                       </button>
                     )}
-                    <label style={{ ...styles.btn, background: '#6f42c1', color: '#fff', fontSize: '12px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', margin: 0 }}>
+                    <label style={{ ...styles.btn, background: T.accent.primaryMuted, color: T.accent.primary, border: `1px solid ${T.accent.primary}40`, fontSize: '12px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', margin: 0 }}>
                       Import
                       <input type="file" accept=".json" onChange={handleImportMemories} style={{ display: 'none' }} />
                     </label>
                   </div>
                 </div>
-                <p style={{ color: '#666', fontSize: '14px', marginBottom: '24px', lineHeight: 1.6 }}>
+                <p style={{ color: T.text.secondary, fontSize: '14px', marginBottom: '24px', lineHeight: 1.6 }}>
                   Memories are facts that your AI employees will remember across all conversations. They help personalize responses and maintain context about you, your business, and your preferences.
                 </p>
 
@@ -1655,19 +1749,19 @@ function App() {
                       placeholder="Search memories..."
                       value={memorySearch}
                       onChange={(e) => setMemorySearch(e.target.value)}
-                      style={{ width: '100%', padding: '12px 14px', border: '1px solid #ddd', borderRadius: '6px', fontSize: '14px', boxSizing: 'border-box' }}
+                      style={{ width: '100%', padding: '12px 14px', border: `1px solid ${T.border.primary}`, borderRadius: T.radius.md, fontSize: '14px', boxSizing: 'border-box', background: T.bg.tertiary, color: T.text.primary, outline: 'none' }}
                     />
                   </div>
                 )}
 
                 {/* Add Memory Form */}
-                <form onSubmit={handleCreateMemory} style={{ marginBottom: '24px', padding: '16px', background: '#f8f9fa', borderRadius: '8px' }}>
+                <form onSubmit={handleCreateMemory} style={{ marginBottom: '24px', padding: '16px', background: T.bg.secondary, borderRadius: T.radius.lg, border: `1px solid ${T.border.primary}` }}>
                   <div style={{ marginBottom: '12px' }}>
                     <textarea
                       placeholder="Enter a fact you want your AI employees to remember..."
                       value={newMemory.content}
                       onChange={(e) => setNewMemory({ ...newMemory, content: e.target.value })}
-                      style={{ width: '100%', padding: '12px', border: '1px solid #ddd', borderRadius: '6px', minHeight: '80px', fontSize: '14px', resize: 'vertical' }}
+                      style={{ width: '100%', padding: '12px', border: `1px solid ${T.border.primary}`, borderRadius: T.radius.md, minHeight: '80px', fontSize: '14px', resize: 'vertical', background: T.bg.tertiary, color: T.text.primary, outline: 'none' }}
                       required
                     />
                   </div>
@@ -1675,7 +1769,7 @@ function App() {
                     <select
                       value={newMemory.category}
                       onChange={(e) => setNewMemory({ ...newMemory, category: e.target.value })}
-                      style={{ padding: '8px 12px', border: '1px solid #ddd', borderRadius: '6px', fontSize: '14px' }}
+                      style={{ padding: '8px 12px', border: `1px solid ${T.border.primary}`, borderRadius: T.radius.md, fontSize: '14px', background: T.bg.tertiary, color: T.text.primary }}
                     >
                       <option value="">No category</option>
                       <option value="preference">Preference</option>
@@ -1687,7 +1781,7 @@ function App() {
                     <select
                       value={newMemory.employee_id}
                       onChange={(e) => setNewMemory({ ...newMemory, employee_id: e.target.value })}
-                      style={{ padding: '8px 12px', border: '1px solid #ddd', borderRadius: '6px', fontSize: '14px' }}
+                      style={{ padding: '8px 12px', border: `1px solid ${T.border.primary}`, borderRadius: T.radius.md, fontSize: '14px', background: T.bg.tertiary, color: T.text.primary }}
                     >
                       <option value="">All employees (shared)</option>
                       {employees.map(e => <option key={e.id} value={e.id}>{e.name} only</option>)}
@@ -1695,7 +1789,7 @@ function App() {
                     <select
                       value={newMemory.project_id}
                       onChange={(e) => setNewMemory({ ...newMemory, project_id: e.target.value })}
-                      style={{ padding: '8px 12px', border: '1px solid #ddd', borderRadius: '6px', fontSize: '14px' }}
+                      style={{ padding: '8px 12px', border: `1px solid ${T.border.primary}`, borderRadius: T.radius.md, fontSize: '14px', background: T.bg.tertiary, color: T.text.primary }}
                     >
                       <option value="">All projects</option>
                       {projects.map(p => <option key={p.id} value={p.id}>#{p.name} only</option>)}
@@ -1711,10 +1805,10 @@ function App() {
                 </form>
 
                 {memories.length === 0 ? (
-                  <div style={{ background: '#f8f9fa', borderRadius: '12px', padding: '30px', textAlign: 'center' }}>
-                    <div style={{ fontSize: '32px', marginBottom: '12px' }}>brain icon</div>
-                    <p style={{ color: '#666', margin: 0, marginBottom: '8px' }}>No memories yet</p>
-                    <p style={{ color: '#999', fontSize: '13px', margin: 0 }}>
+                  <div style={{ background: T.bg.secondary, borderRadius: T.radius.lg, padding: '30px', textAlign: 'center', border: `1px solid ${T.border.primary}` }}>
+                    <div style={{ fontSize: '32px', marginBottom: '12px' }}>🧠</div>
+                    <p style={{ color: T.text.secondary, margin: 0, marginBottom: '8px' }}>No memories yet</p>
+                    <p style={{ color: T.text.tertiary, fontSize: '13px', margin: 0 }}>
                       Memories are created when you chat with employees. Ask them to "remember" something important.
                     </p>
                   </div>
@@ -1728,23 +1822,23 @@ function App() {
                       )
                     : memories
                   return filteredMemories.length === 0 ? (
-                    <div style={{ background: '#f8f9fa', borderRadius: '12px', padding: '30px', textAlign: 'center' }}>
-                      <p style={{ color: '#666', margin: 0 }}>No memories match "{memorySearch}"</p>
+                    <div style={{ background: T.bg.tertiary, borderRadius: T.radius.lg, padding: '30px', textAlign: 'center' }}>
+                      <p style={{ color: T.text.secondary, margin: 0 }}>No memories match "{memorySearch}"</p>
                     </div>
                   ) : (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                       {memorySearch.trim() && (
-                        <div style={{ fontSize: '13px', color: '#666', marginBottom: '4px' }}>
+                        <div style={{ fontSize: '13px', color: T.text.secondary, marginBottom: '4px' }}>
                           Showing {filteredMemories.length} of {memories.length} memories
                         </div>
                       )}
                       {filteredMemories.map(m => (
-                        <div key={m.id} style={{ background: '#fff', border: '1px solid #e0e0e0', borderRadius: '8px', padding: '16px' }}>
+                        <div key={m.id} style={{ background: T.bg.tertiary, border: `1px solid ${T.border.primary}`, borderRadius: T.radius.md, padding: '16px' }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                            <p style={{ margin: 0, color: '#333', lineHeight: 1.5, flex: 1 }}>{m.content}</p>
+                            <p style={{ margin: 0, color: T.text.primary, lineHeight: 1.5, flex: 1 }}>{m.content}</p>
                             <button
                               onClick={() => handleDeleteMemory(m.id)}
-                              style={{ background: 'none', border: 'none', color: '#999', cursor: 'pointer', padding: '4px 8px', fontSize: '14px' }}
+                              style={{ background: 'none', border: 'none', color: T.text.tertiary, cursor: 'pointer', padding: '4px 8px', fontSize: '14px', transition: T.transition.fast }}
                               title="Delete memory"
                             >
                               ×
@@ -1756,8 +1850,8 @@ function App() {
                                 fontSize: '11px',
                                 padding: '2px 8px',
                                 borderRadius: '10px',
-                                background: m.category === 'preference' ? '#e8eaf6' : m.category === 'fact' ? '#fff8e1' : m.category === 'context' ? '#e0f7fa' : m.category === 'instruction' ? '#fce4ec' : '#f5f5f5',
-                                color: m.category === 'preference' ? '#3f51b5' : m.category === 'fact' ? '#ff8f00' : m.category === 'context' ? '#00838f' : m.category === 'instruction' ? '#c2185b' : '#616161'
+                                background: CATEGORY_COLORS[m.category]?.bg || T.bg.hover,
+                                color: CATEGORY_COLORS[m.category]?.text || T.text.secondary
                               }}>
                                 {m.category}
                               </span>
@@ -1766,8 +1860,8 @@ function App() {
                               fontSize: '11px',
                               padding: '2px 8px',
                               borderRadius: '10px',
-                              background: m.project_name ? '#fff3e0' : m.employee_name ? '#e8f5e9' : '#e3f2fd',
-                              color: m.project_name ? '#e65100' : m.employee_name ? '#2e7d32' : '#1565c0'
+                              background: m.project_name ? T.accent.warningMuted : m.employee_name ? T.accent.successMuted : T.accent.infoMuted,
+                              color: m.project_name ? T.accent.warning : m.employee_name ? T.accent.success : T.accent.info
                             }}>
                               {m.project_name ? `# ${m.project_name}` : m.employee_name ? m.employee_name : 'Shared with all'}
                             </span>
@@ -1786,7 +1880,7 @@ function App() {
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                   <strong>{activeChannel.type === 'project' ? '#' : ''}{activeChannel.name}</strong>
-                  {activeChannel.type === 'project' && <span style={{ color: '#999', fontSize: '14px' }}>Use @name to mention an employee</span>}
+                  {activeChannel.type === 'project' && <span style={{ color: T.text.tertiary, fontSize: '14px' }}>Use @name to mention an employee</span>}
                 </div>
                 {activeChannel.type === 'project' && (() => {
                   const project = projects.find(p => p.id === activeChannel.id)
@@ -2015,14 +2109,14 @@ function App() {
               <div ref={messagesEndRef} />
             </div>
 
-            <div style={{ padding: '15px', borderTop: '1px solid #ddd' }}>
+            <div style={{ padding: '15px', borderTop: `1px solid ${T.border.primary}` }}>
               {activeChannel.type === 'dm' && uploadedFiles.length > 0 && (
                 <div style={{ marginBottom: '10px', display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
                   {uploadedFiles.map(f => (
-                    <div key={f.id} style={{ display: 'flex', alignItems: 'center', background: '#e3f2fd', padding: '4px 10px', borderRadius: '15px', fontSize: '12px' }}>
-                      <span style={{ marginRight: '6px' }}>{f.filename}</span>
-                      <button onClick={() => handleDownloadFile(f.id, f.filename)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#1565c0', padding: '0 4px', fontSize: '12px' }} title="Download">↓</button>
-                      <button onClick={() => handleDeleteFile(f.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#666', padding: '0', fontSize: '14px' }} title="Delete">×</button>
+                    <div key={f.id} style={{ display: 'flex', alignItems: 'center', background: T.accent.infoMuted, padding: '4px 10px', borderRadius: '15px', fontSize: '12px' }}>
+                      <span style={{ marginRight: '6px', color: T.text.primary }}>{f.filename}</span>
+                      <button onClick={() => handleDownloadFile(f.id, f.filename)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: T.accent.info, padding: '0 4px', fontSize: '12px' }} title="Download">↓</button>
+                      <button onClick={() => handleDeleteFile(f.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: T.text.tertiary, padding: '0', fontSize: '14px' }} title="Delete">×</button>
                     </div>
                   ))}
                 </div>
@@ -2034,7 +2128,7 @@ function App() {
                     <button
                       onClick={() => fileInputRef.current?.click()}
                       disabled={isStreaming || uploading || uploadedFiles.length >= 5}
-                      style={{ ...styles.btn, background: '#6c757d', color: '#fff', opacity: (isStreaming || uploading || uploadedFiles.length >= 5) ? 0.6 : 1, flexShrink: 0 }}
+                      style={{ ...styles.btn, background: T.bg.hover, color: T.text.primary, opacity: (isStreaming || uploading || uploadedFiles.length >= 5) ? 0.6 : 1, flexShrink: 0, border: `1px solid ${T.border.primary}` }}
                     >
                       {uploading ? '...' : '+'}
                     </button>
@@ -2043,7 +2137,7 @@ function App() {
                 <select
                   value={modelOverride}
                   onChange={(e) => setModelOverride(e.target.value)}
-                  style={{ padding: '8px', border: '1px solid #ddd', borderRadius: '6px', fontSize: '12px', background: modelOverride ? '#e3f2fd' : '#fff', flexShrink: 0 }}
+                  style={{ padding: '8px', border: `1px solid ${T.border.primary}`, borderRadius: '6px', fontSize: '12px', background: modelOverride ? T.accent.primaryMuted : T.bg.tertiary, color: T.text.primary, flexShrink: 0 }}
                   title="Override model for this conversation"
                 >
                   <option value="">Default Model</option>
@@ -2061,17 +2155,72 @@ function App() {
                     <option value="claude-3-haiku">Claude 3 Haiku</option>
                   </optgroup>
                 </select>
-                <input
-                  type="text"
-                  value={chatInput}
-                  onChange={(e) => setChatInput(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && sendMessage()}
-                  placeholder={activeChannel.type === 'project' ? 'Message #' + activeChannel.name + ' (use @name to mention)' : 'Message ' + activeChannel.name}
-                  disabled={isStreaming}
-                  style={{ flex: 1, minWidth: '0', padding: '14px 16px', border: `1px solid ${T.border.primary}`, borderRadius: T.radius.md, fontSize: '14px', background: T.bg.tertiary, color: T.text.primary, outline: 'none', transition: T.transition.fast }}
-                  onFocus={e => e.target.style.borderColor = T.accent.primary}
-                  onBlur={e => e.target.style.borderColor = T.border.primary}
-                />
+                <div style={{ flex: 1, minWidth: '0', position: 'relative' }}>
+                  <input
+                    type="text"
+                    value={chatInput}
+                    onChange={handleChatInputChange}
+                    onKeyDown={handleChatInputKeyDown}
+                    placeholder={activeChannel.type === 'project' ? 'Message #' + activeChannel.name + ' (type @ to mention)' : 'Message ' + activeChannel.name}
+                    disabled={isStreaming}
+                    style={{ width: '100%', padding: '14px 16px', border: `1px solid ${T.border.primary}`, borderRadius: T.radius.md, fontSize: '14px', background: T.bg.tertiary, color: T.text.primary, outline: 'none', transition: T.transition.fast, boxSizing: 'border-box' }}
+                    onFocus={e => e.target.style.borderColor = T.accent.primary}
+                    onBlur={e => { e.target.style.borderColor = T.border.primary; setTimeout(() => setMentionDropdown({ show: false, matches: [], position: 0, selectedIndex: 0 }), 150) }}
+                  />
+                  {/* @mention autocomplete dropdown */}
+                  {mentionDropdown.show && activeChannel.type === 'project' && (
+                    <div style={{
+                      position: 'absolute',
+                      bottom: '100%',
+                      left: 0,
+                      right: 0,
+                      marginBottom: '4px',
+                      background: T.bg.elevated,
+                      border: `1px solid ${T.border.primary}`,
+                      borderRadius: T.radius.md,
+                      boxShadow: T.shadow.lg,
+                      overflow: 'hidden',
+                      zIndex: 100
+                    }}>
+                      {mentionDropdown.matches.map((emp, index) => (
+                        <div
+                          key={emp.id}
+                          onClick={() => handleMentionSelect(emp)}
+                          style={{
+                            padding: '10px 14px',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '10px',
+                            background: index === mentionDropdown.selectedIndex ? T.accent.primaryMuted : 'transparent',
+                            borderLeft: index === mentionDropdown.selectedIndex ? `3px solid ${T.accent.primary}` : '3px solid transparent',
+                            transition: T.transition.fast
+                          }}
+                          onMouseEnter={() => setMentionDropdown(prev => ({ ...prev, selectedIndex: index }))}
+                        >
+                          <span style={{
+                            width: '28px',
+                            height: '28px',
+                            borderRadius: T.radius.sm,
+                            background: `linear-gradient(135deg, ${T.accent.primary}, ${T.accent.primaryHover})`,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            color: '#fff',
+                            fontSize: '12px',
+                            fontWeight: 600
+                          }}>
+                            {emp.name.charAt(0).toUpperCase()}
+                          </span>
+                          <div>
+                            <div style={{ color: T.text.primary, fontWeight: 500 }}>{emp.name}</div>
+                            {emp.role && <div style={{ color: T.text.tertiary, fontSize: '12px' }}>{emp.role}</div>}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
                 <button onClick={sendMessage} disabled={isStreaming || !chatInput.trim()} style={{ ...styles.btn, background: T.accent.primary, color: '#fff', opacity: isStreaming ? 0.6 : 1, flexShrink: 0 }}>
                   {isStreaming ? 'Sending...' : 'Send'}
                 </button>
@@ -2171,23 +2320,23 @@ function App() {
 
               {/* Quick Stats */}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '16px' }}>
-                <div style={{ background: '#f8f9fa', borderRadius: '8px', padding: '20px', textAlign: 'center' }}>
-                  <div style={{ fontSize: '28px', fontWeight: 'bold', color: '#333' }}>{employees.length}</div>
-                  <div style={{ color: '#666', fontSize: '14px' }}>Team Members</div>
+                <div style={{ background: T.bg.tertiary, borderRadius: T.radius.md, padding: '20px', textAlign: 'center', border: `1px solid ${T.border.subtle}` }}>
+                  <div style={{ fontSize: '28px', fontWeight: 'bold', color: T.accent.primary }}>{employees.length}</div>
+                  <div style={{ color: T.text.secondary, fontSize: '14px' }}>Team Members</div>
                 </div>
-                <div style={{ background: '#f8f9fa', borderRadius: '8px', padding: '20px', textAlign: 'center' }}>
-                  <div style={{ fontSize: '28px', fontWeight: 'bold', color: '#333' }}>{projects.length}</div>
-                  <div style={{ color: '#666', fontSize: '14px' }}>Projects</div>
+                <div style={{ background: T.bg.tertiary, borderRadius: T.radius.md, padding: '20px', textAlign: 'center', border: `1px solid ${T.border.subtle}` }}>
+                  <div style={{ fontSize: '28px', fontWeight: 'bold', color: T.accent.info }}>{projects.length}</div>
+                  <div style={{ color: T.text.secondary, fontSize: '14px' }}>Projects</div>
                 </div>
-                <div style={{ background: '#f8f9fa', borderRadius: '8px', padding: '20px', textAlign: 'center' }}>
-                  <div style={{ fontSize: '28px', fontWeight: 'bold', color: '#333' }}>{memories.length}</div>
-                  <div style={{ color: '#666', fontSize: '14px' }}>Memories</div>
+                <div style={{ background: T.bg.tertiary, borderRadius: T.radius.md, padding: '20px', textAlign: 'center', border: `1px solid ${T.border.subtle}` }}>
+                  <div style={{ fontSize: '28px', fontWeight: 'bold', color: T.accent.warning }}>{memories.length}</div>
+                  <div style={{ color: T.text.secondary, fontSize: '14px' }}>Memories</div>
                 </div>
-                <div style={{ background: '#f8f9fa', borderRadius: '8px', padding: '20px', textAlign: 'center' }}>
-                  <div style={{ fontSize: '28px', fontWeight: 'bold', color: apiKeys.has_openai_key || apiKeys.has_anthropic_key ? '#2bac76' : '#dc3545' }}>
+                <div style={{ background: T.bg.tertiary, borderRadius: T.radius.md, padding: '20px', textAlign: 'center', border: `1px solid ${T.border.subtle}` }}>
+                  <div style={{ fontSize: '28px', fontWeight: 'bold', color: apiKeys.has_openai_key || apiKeys.has_anthropic_key ? T.accent.success : T.accent.danger }}>
                     {apiKeys.has_openai_key || apiKeys.has_anthropic_key ? '✓' : '!'}
                   </div>
-                  <div style={{ color: '#666', fontSize: '14px' }}>API Keys</div>
+                  <div style={{ color: T.text.secondary, fontSize: '14px' }}>API Keys</div>
                 </div>
               </div>
             </div>
@@ -2217,8 +2366,8 @@ function App() {
                 </select>
               )}
               <div style={{ display: 'flex', gap: '10px' }}>
-                <button type="submit" style={{ ...styles.btn, background: T.accent.primary, color: '#fff' }}>Save</button>
-                <button type="button" onClick={() => setShowProjectModal(false)} style={{ ...styles.btn, background: '#6c757d', color: '#fff' }}>Cancel</button>
+                <button type="submit" style={{ ...styles.btn, background: T.accent.primary, color: T.text.inverse }}>Save</button>
+                <button type="button" onClick={() => setShowProjectModal(false)} style={{ ...styles.btn, background: T.bg.hover, color: T.text.primary, border: `1px solid ${T.border.primary}` }}>Cancel</button>
               </div>
             </form>
           </div>
@@ -2234,7 +2383,7 @@ function App() {
               <input type="text" placeholder="Name" value={employeeForm.name} onChange={(e) => setEmployeeForm({ ...employeeForm, name: e.target.value })} style={styles.input} required disabled={editingEmployee?.is_default} />
               <input type="text" placeholder="Role (e.g., Developer, QA)" value={employeeForm.role || ''} onChange={(e) => setEmployeeForm({ ...employeeForm, role: e.target.value })} style={styles.input} />
               <div style={{ marginBottom: '10px' }}>
-                <label style={{ fontSize: '12px', color: '#666', marginBottom: '4px', display: 'block' }}>Instruction Template</label>
+                <label style={{ fontSize: '12px', color: T.text.secondary, marginBottom: '4px', display: 'block' }}>Instruction Template</label>
                 <select
                   onChange={(e) => {
                     const template = INSTRUCTION_TEMPLATES[e.target.value]
@@ -2267,15 +2416,15 @@ function App() {
                 </optgroup>
               </select>
               <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-                <button type="submit" style={{ ...styles.btn, background: T.accent.primary, color: '#fff' }}>Save</button>
-                <button type="button" onClick={() => setShowEmployeeModal(false)} style={{ ...styles.btn, background: '#6c757d', color: '#fff' }}>Cancel</button>
+                <button type="submit" style={{ ...styles.btn, background: T.accent.primary, color: T.text.inverse }}>Save</button>
+                <button type="button" onClick={() => setShowEmployeeModal(false)} style={{ ...styles.btn, background: T.bg.hover, color: T.text.primary, border: `1px solid ${T.border.primary}` }}>Cancel</button>
                 <div style={{ flex: 1 }}></div>
                 {editingEmployee && (
-                  <button type="button" onClick={handleExportEmployee} style={{ ...styles.btn, background: '#17a2b8', color: '#fff', fontSize: '12px' }} title="Export configuration">
+                  <button type="button" onClick={handleExportEmployee} style={{ ...styles.btn, background: T.accent.info, color: T.text.inverse, fontSize: '12px' }} title="Export configuration">
                     Export
                   </button>
                 )}
-                <label style={{ ...styles.btn, background: '#6f42c1', color: '#fff', fontSize: '12px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', margin: 0 }}>
+                <label style={{ ...styles.btn, background: T.accent.primary, color: T.text.inverse, fontSize: '12px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', margin: 0 }}>
                   Import
                   <input type="file" accept=".json" onChange={handleImportEmployee} style={{ display: 'none' }} />
                 </label>
@@ -2290,12 +2439,12 @@ function App() {
         <div style={styles.modal} onClick={() => setFilePreview(null)}>
           <div style={{ ...styles.modalContent, maxWidth: '600px', maxHeight: '80vh', display: 'flex', flexDirection: 'column' }} onClick={(e) => e.stopPropagation()}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
-              <h3 style={{ margin: 0 }}>File Preview</h3>
-              <button onClick={() => setFilePreview(null)} style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer', color: '#666' }}>×</button>
+              <h3 style={{ margin: 0, color: T.text.primary }}>File Preview</h3>
+              <button onClick={() => setFilePreview(null)} style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer', color: T.text.tertiary }}>×</button>
             </div>
-            <div style={{ marginBottom: '15px', padding: '10px', background: '#f8f9fa', borderRadius: '6px' }}>
-              <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>{filePreview.name}</div>
-              <div style={{ fontSize: '12px', color: '#666' }}>{(filePreview.size / 1024).toFixed(1)} KB</div>
+            <div style={{ marginBottom: '15px', padding: '10px', background: T.bg.tertiary, borderRadius: T.radius.sm }}>
+              <div style={{ fontWeight: 'bold', marginBottom: '4px', color: T.text.primary }}>{filePreview.name}</div>
+              <div style={{ fontSize: '12px', color: T.text.secondary }}>{(filePreview.size / 1024).toFixed(1)} KB</div>
             </div>
             <div style={{ flex: 1, overflow: 'auto', background: '#1e1e1e', borderRadius: '6px', padding: '12px', marginBottom: '15px' }}>
               <pre style={{ margin: 0, color: '#d4d4d4', fontSize: '12px', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
@@ -2307,11 +2456,11 @@ function App() {
               <button
                 onClick={handleFileUpload}
                 disabled={uploading}
-                style={{ ...styles.btn, background: T.accent.primary, color: '#fff', flex: 1, opacity: uploading ? 0.6 : 1 }}
+                style={{ ...styles.btn, background: T.accent.primary, color: T.text.inverse, flex: 1, opacity: uploading ? 0.6 : 1 }}
               >
                 {uploading ? 'Uploading...' : 'Upload File'}
               </button>
-              <button onClick={() => setFilePreview(null)} style={{ ...styles.btn, background: '#6c757d', color: '#fff' }}>Cancel</button>
+              <button onClick={() => setFilePreview(null)} style={{ ...styles.btn, background: T.bg.hover, color: T.text.primary, border: `1px solid ${T.border.primary}` }}>Cancel</button>
             </div>
           </div>
         </div>
@@ -2321,29 +2470,29 @@ function App() {
       {showUsageModal && (
         <div style={styles.modal} onClick={() => setShowUsageModal(false)}>
           <div style={{ ...styles.modalContent, maxWidth: '600px' }} onClick={(e) => e.stopPropagation()}>
-            <h3 style={{ marginTop: 0 }}>API Usage (Last 30 Days)</h3>
+            <h3 style={{ marginTop: 0, color: T.text.primary }}>API Usage (Last 30 Days)</h3>
             {usageStats ? (
               <div>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '15px', marginBottom: '20px' }}>
-                  <div style={{ background: '#f8f9fa', padding: '15px', borderRadius: '8px', textAlign: 'center' }}>
-                    <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#333' }}>{usageStats.total_requests.toLocaleString()}</div>
-                    <div style={{ fontSize: '12px', color: '#666' }}>Total Requests</div>
+                  <div style={{ background: T.bg.tertiary, padding: '15px', borderRadius: T.radius.md, textAlign: 'center' }}>
+                    <div style={{ fontSize: '24px', fontWeight: 'bold', color: T.accent.primary }}>{usageStats.total_requests.toLocaleString()}</div>
+                    <div style={{ fontSize: '12px', color: T.text.secondary }}>Total Requests</div>
                   </div>
-                  <div style={{ background: '#f8f9fa', padding: '15px', borderRadius: '8px', textAlign: 'center' }}>
-                    <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#333' }}>{usageStats.total_tokens.toLocaleString()}</div>
-                    <div style={{ fontSize: '12px', color: '#666' }}>Total Tokens</div>
+                  <div style={{ background: T.bg.tertiary, padding: '15px', borderRadius: T.radius.md, textAlign: 'center' }}>
+                    <div style={{ fontSize: '24px', fontWeight: 'bold', color: T.accent.info }}>{usageStats.total_tokens.toLocaleString()}</div>
+                    <div style={{ fontSize: '12px', color: T.text.secondary }}>Total Tokens</div>
                   </div>
-                  <div style={{ background: '#e8f5e9', padding: '15px', borderRadius: '8px', textAlign: 'center' }}>
-                    <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#2e7d32' }}>${usageStats.estimated_total_cost.toFixed(2)}</div>
-                    <div style={{ fontSize: '12px', color: '#666' }}>Est. Cost</div>
+                  <div style={{ background: T.accent.successMuted, padding: '15px', borderRadius: T.radius.md, textAlign: 'center' }}>
+                    <div style={{ fontSize: '24px', fontWeight: 'bold', color: T.accent.success }}>${usageStats.estimated_total_cost.toFixed(2)}</div>
+                    <div style={{ fontSize: '12px', color: T.text.secondary }}>Est. Cost</div>
                   </div>
                 </div>
-                <h4 style={{ marginBottom: '10px' }}>By Model</h4>
+                <h4 style={{ marginBottom: '10px', color: T.text.primary }}>By Model</h4>
                 <div style={{ maxHeight: '200px', overflow: 'auto' }}>
                   {usageStats.by_model.map(m => (
-                    <div key={m.model} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid #eee' }}>
-                      <span style={{ fontWeight: 500 }}>{m.model}</span>
-                      <span style={{ color: '#666' }}>
+                    <div key={m.model} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: `1px solid ${T.border.subtle}` }}>
+                      <span style={{ fontWeight: 500, color: T.text.primary }}>{m.model}</span>
+                      <span style={{ color: T.text.secondary }}>
                         {m.requests} requests | {(m.input_tokens + m.output_tokens).toLocaleString()} tokens | ${m.estimated_cost.toFixed(3)}
                       </span>
                     </div>
@@ -2351,10 +2500,10 @@ function App() {
                 </div>
               </div>
             ) : (
-              <p style={{ color: '#666' }}>Loading usage data...</p>
+              <p style={{ color: T.text.secondary }}>Loading usage data...</p>
             )}
             <div style={{ marginTop: '20px' }}>
-              <button onClick={() => setShowUsageModal(false)} style={{ ...styles.btn, background: '#6c757d', color: '#fff' }}>Close</button>
+              <button onClick={() => setShowUsageModal(false)} style={{ ...styles.btn, background: T.bg.hover, color: T.text.primary, border: `1px solid ${T.border.primary}` }}>Close</button>
             </div>
           </div>
         </div>
@@ -2364,30 +2513,30 @@ function App() {
       {showRoleLibrary && (
         <div style={styles.modal} onClick={() => setShowRoleLibrary(false)}>
           <div style={{ ...styles.modalContent, maxWidth: '800px', maxHeight: '80vh', overflow: 'auto' }} onClick={(e) => e.stopPropagation()}>
-            <h3 style={{ marginTop: 0, display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <h3 style={{ marginTop: 0, display: 'flex', alignItems: 'center', gap: '10px', color: T.text.primary }}>
               Role Library
-              <span style={{ fontSize: '12px', padding: '4px 10px', background: '#e3f2fd', color: '#1565c0', borderRadius: '12px' }}>
+              <span style={{ fontSize: '12px', padding: '4px 10px', background: T.accent.infoMuted, color: T.accent.info, borderRadius: '12px' }}>
                 {roleLibrary.total_employees} active roles
               </span>
             </h3>
-            <p style={{ color: '#666', fontSize: '14px', marginBottom: '20px' }}>
+            <p style={{ color: T.text.secondary, fontSize: '14px', marginBottom: '20px' }}>
               Add expert roles to your AI team. Each role comes with specialized instructions and boundaries.
             </p>
 
             {/* Memory Suggestions Alert */}
             {pendingSuggestionsCount > 0 && (
-              <div style={{ background: '#fff3cd', border: '1px solid #ffc107', borderRadius: '8px', padding: '12px', marginBottom: '20px' }}>
-                <strong>Memory Suggestions:</strong> {pendingSuggestionsCount} pending approval
+              <div style={{ background: T.accent.warningMuted, border: `1px solid ${T.accent.warning}`, borderRadius: T.radius.md, padding: '12px', marginBottom: '20px' }}>
+                <strong style={{ color: T.text.primary }}>Memory Suggestions:</strong> <span style={{ color: T.text.secondary }}>{pendingSuggestionsCount} pending approval</span>
                 <div style={{ marginTop: '10px' }}>
                   {memorySuggestions.slice(0, 3).map(s => (
-                    <div key={s.id} style={{ background: '#fff', padding: '10px', borderRadius: '6px', marginBottom: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div key={s.id} style={{ background: T.bg.tertiary, padding: '10px', borderRadius: T.radius.sm, marginBottom: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <div>
-                        <div style={{ fontSize: '13px', color: '#333' }}>{s.content.length > 60 ? s.content.slice(0, 60) + '...' : s.content}</div>
-                        <div style={{ fontSize: '11px', color: '#666' }}>Suggested by {s.employee_name}</div>
+                        <div style={{ fontSize: '13px', color: T.text.primary }}>{s.content.length > 60 ? s.content.slice(0, 60) + '...' : s.content}</div>
+                        <div style={{ fontSize: '11px', color: T.text.secondary }}>Suggested by {s.employee_name}</div>
                       </div>
                       <div style={{ display: 'flex', gap: '6px' }}>
-                        <button onClick={() => handleApproveMemorySuggestion(s.id)} style={{ padding: '4px 10px', background: '#28a745', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}>Approve</button>
-                        <button onClick={() => handleRejectMemorySuggestion(s.id)} style={{ padding: '4px 10px', background: '#dc3545', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}>Reject</button>
+                        <button onClick={() => handleApproveMemorySuggestion(s.id)} style={{ padding: '4px 10px', background: T.accent.success, color: T.text.inverse, border: 'none', borderRadius: T.radius.sm, cursor: 'pointer', fontSize: '12px' }}>Approve</button>
+                        <button onClick={() => handleRejectMemorySuggestion(s.id)} style={{ padding: '4px 10px', background: T.accent.danger, color: T.text.inverse, border: 'none', borderRadius: T.radius.sm, cursor: 'pointer', fontSize: '12px' }}>Reject</button>
                       </div>
                     </div>
                   ))}
@@ -2396,34 +2545,34 @@ function App() {
             )}
 
             {loadingRoles ? (
-              <p style={{ color: '#666' }}>Loading roles...</p>
+              <p style={{ color: T.text.secondary }}>Loading roles...</p>
             ) : (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))', gap: '15px' }}>
                 {roleLibrary.templates.map(template => (
-                  <div key={template.id} style={{ background: '#f8f9fa', border: '1px solid #e0e0e0', borderRadius: '10px', padding: '16px', position: 'relative' }}>
+                  <div key={template.id} style={{ background: T.bg.tertiary, border: `1px solid ${T.border.primary}`, borderRadius: T.radius.lg, padding: '16px', position: 'relative' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
                       <div>
-                        <h4 style={{ margin: 0, color: '#333' }}>{template.name}</h4>
-                        {template.is_default && <span style={{ fontSize: '10px', padding: '2px 6px', background: T.accent.primary, color: '#fff', borderRadius: '4px', marginLeft: '6px' }}>Default</span>}
-                        {template.is_undeletable && <span style={{ fontSize: '10px', padding: '2px 6px', background: '#6c757d', color: '#fff', borderRadius: '4px', marginLeft: '4px' }}>Required</span>}
+                        <h4 style={{ margin: 0, color: T.text.primary }}>{template.name}</h4>
+                        {template.is_default && <span style={{ fontSize: '10px', padding: '2px 6px', background: T.accent.primary, color: T.text.inverse, borderRadius: '4px', marginLeft: '6px' }}>Default</span>}
+                        {template.is_undeletable && <span style={{ fontSize: '10px', padding: '2px 6px', background: T.bg.hover, color: T.text.secondary, borderRadius: '4px', marginLeft: '4px' }}>Required</span>}
                       </div>
                       {template.in_use && (
-                        <span style={{ fontSize: '11px', padding: '3px 8px', background: '#d4edda', color: '#155724', borderRadius: '10px' }}>
+                        <span style={{ fontSize: '11px', padding: '3px 8px', background: T.accent.successMuted, color: T.accent.success, borderRadius: '10px' }}>
                           {template.employees_using.length} in use
                         </span>
                       )}
                     </div>
-                    <p style={{ fontSize: '13px', color: '#666', margin: '8px 0', lineHeight: 1.5 }}>{template.description}</p>
+                    <p style={{ fontSize: '13px', color: T.text.secondary, margin: '8px 0', lineHeight: 1.5 }}>{template.description}</p>
 
                     {/* What this role does */}
                     {template.boundaries_does.length > 0 && (
                       <div style={{ fontSize: '12px', marginBottom: '8px' }}>
-                        <strong style={{ color: '#28a745' }}>Does:</strong>
-                        <ul style={{ margin: '4px 0', paddingLeft: '18px', color: '#555' }}>
+                        <strong style={{ color: T.accent.success }}>Does:</strong>
+                        <ul style={{ margin: '4px 0', paddingLeft: '18px', color: T.text.secondary }}>
                           {template.boundaries_does.slice(0, 3).map((item, i) => (
                             <li key={i}>{item}</li>
                           ))}
-                          {template.boundaries_does.length > 3 && <li style={{ color: '#888' }}>+{template.boundaries_does.length - 3} more...</li>}
+                          {template.boundaries_does.length > 3 && <li style={{ color: T.text.tertiary }}>+{template.boundaries_does.length - 3} more...</li>}
                         </ul>
                       </div>
                     )}
@@ -2431,12 +2580,12 @@ function App() {
                     {/* What this role does NOT do */}
                     {template.boundaries_does_not.length > 0 && (
                       <div style={{ fontSize: '12px', marginBottom: '12px' }}>
-                        <strong style={{ color: '#dc3545' }}>Does not:</strong>
-                        <ul style={{ margin: '4px 0', paddingLeft: '18px', color: '#555' }}>
+                        <strong style={{ color: T.accent.danger }}>Does not:</strong>
+                        <ul style={{ margin: '4px 0', paddingLeft: '18px', color: T.text.secondary }}>
                           {template.boundaries_does_not.slice(0, 2).map((item, i) => (
                             <li key={i}>{item}</li>
                           ))}
-                          {template.boundaries_does_not.length > 2 && <li style={{ color: '#888' }}>+{template.boundaries_does_not.length - 2} more...</li>}
+                          {template.boundaries_does_not.length > 2 && <li style={{ color: T.text.tertiary }}>+{template.boundaries_does_not.length - 2} more...</li>}
                         </ul>
                       </div>
                     )}
@@ -2445,7 +2594,7 @@ function App() {
                       {!template.in_use ? (
                         <button
                           onClick={() => handleAddRoleFromTemplate(template.id)}
-                          style={{ padding: '6px 14px', background: '#28a745', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px' }}
+                          style={{ padding: '6px 14px', background: T.accent.success, color: T.text.inverse, border: 'none', borderRadius: T.radius.sm, cursor: 'pointer', fontSize: '13px' }}
                         >
                           Add to Team
                         </button>
@@ -2453,7 +2602,7 @@ function App() {
                         <>
                           <button
                             onClick={() => handleAddRoleFromTemplate(template.id)}
-                            style={{ padding: '6px 14px', background: '#6c757d', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px' }}
+                            style={{ padding: '6px 14px', background: T.bg.hover, color: T.text.primary, border: `1px solid ${T.border.primary}`, borderRadius: T.radius.sm, cursor: 'pointer', fontSize: '13px' }}
                           >
                             Add Another
                           </button>
@@ -2461,7 +2610,7 @@ function App() {
                             <div key={emp.id} style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
                               <button
                                 onClick={() => handleCloneEmployee(emp.id)}
-                                style={{ padding: '4px 8px', background: '#17a2b8', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}
+                                style={{ padding: '4px 8px', background: T.accent.info, color: T.text.inverse, border: 'none', borderRadius: T.radius.sm, cursor: 'pointer', fontSize: '11px' }}
                                 title={`Clone ${emp.name}`}
                               >
                                 Clone
@@ -2469,7 +2618,7 @@ function App() {
                               {!emp.is_default && (
                                 <button
                                   onClick={() => handleResetToTemplate(emp.id)}
-                                  style={{ padding: '4px 8px', background: '#ffc107', color: '#000', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}
+                                  style={{ padding: '4px 8px', background: T.accent.warning, color: T.text.inverse, border: 'none', borderRadius: T.radius.sm, cursor: 'pointer', fontSize: '11px' }}
                                   title="Reset to template defaults"
                                 >
                                   Reset
@@ -2486,7 +2635,31 @@ function App() {
             )}
 
             <div style={{ marginTop: '20px' }}>
-              <button onClick={() => setShowRoleLibrary(false)} style={{ ...styles.btn, background: '#6c757d', color: '#fff' }}>Close</button>
+              <button onClick={() => setShowRoleLibrary(false)} style={{ ...styles.btn, background: T.bg.hover, color: T.text.primary, border: `1px solid ${T.border.primary}` }}>Close</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Confirmation Dialog */}
+      {confirmDialog && (
+        <div style={styles.modal} onClick={() => setConfirmDialog(null)}>
+          <div style={{ ...styles.modalContent, maxWidth: '400px', textAlign: 'center' }} onClick={(e) => e.stopPropagation()}>
+            <h3 style={{ marginTop: 0, color: T.text.primary }}>{confirmDialog.title}</h3>
+            <p style={{ color: T.text.secondary, marginBottom: '24px', lineHeight: 1.5 }}>{confirmDialog.message}</p>
+            <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
+              <button
+                onClick={() => setConfirmDialog(null)}
+                style={{ ...styles.btn, background: T.bg.hover, color: T.text.primary, border: `1px solid ${T.border.primary}`, minWidth: '100px' }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmDialog.onConfirm}
+                style={{ ...styles.btn, background: T.accent.danger, color: T.text.inverse, minWidth: '100px' }}
+              >
+                Delete
+              </button>
             </div>
           </div>
         </div>
