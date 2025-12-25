@@ -18,6 +18,7 @@ const T = {
     secondary: '#a0a0a8',    // Secondary text
     tertiary: '#6b6b75',     // Placeholder, disabled
     inverse: '#0a0a0b',      // Text on light backgrounds
+    onAccent: '#ffffff',     // White text on colored buttons
   },
   // Accent colors
   accent: {
@@ -25,6 +26,7 @@ const T = {
     primaryHover: '#a78bfa', // Lighter violet - hover
     primaryMuted: 'rgba(139, 92, 246, 0.15)', // For backgrounds
     success: '#10b981',      // Emerald green
+    successHover: '${T.accent.successHover}', // Lighter emerald for gradients
     successMuted: 'rgba(16, 185, 129, 0.15)',
     danger: '#ef4444',       // Red
     dangerMuted: 'rgba(239, 68, 68, 0.15)',
@@ -270,6 +272,7 @@ function App() {
   const [modelOverride, setModelOverride] = useState('') // Override employee's default model for this conversation
   const [confirmDialog, setConfirmDialog] = useState(null) // { title, message, onConfirm }
   const [mentionDropdown, setMentionDropdown] = useState({ show: false, matches: [], position: 0, selectedIndex: 0 })
+  const [copiedMessageId, setCopiedMessageId] = useState(null) // Track which message was just copied
 
   // Modal state
   const [showProjectModal, setShowProjectModal] = useState(false)
@@ -745,10 +748,11 @@ function App() {
   }
 
   // Copy message to clipboard
-  const copyToClipboard = async (content) => {
+  const copyToClipboard = async (content, messageId) => {
     try {
       await navigator.clipboard.writeText(content)
-      showToast('Copied to clipboard', 'success')
+      setCopiedMessageId(messageId)
+      setTimeout(() => setCopiedMessageId(null), 2000)
     } catch { showToast('Failed to copy', 'error') }
   }
 
@@ -1382,7 +1386,20 @@ function App() {
   }
 
   if (loading) {
-    return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', background: T.bg.primary }}><p style={{ color: T.text.secondary }}>Loading...</p></div>
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100vh', background: T.bg.primary, gap: '16px' }}>
+        <div style={{
+          width: '40px',
+          height: '40px',
+          border: `3px solid ${T.border.primary}`,
+          borderTop: `3px solid ${T.accent.primary}`,
+          borderRadius: '50%',
+          animation: 'spin 1s linear infinite'
+        }} />
+        <p style={{ color: T.text.secondary, margin: 0 }}>Loading...</p>
+        <style>{`@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}</style>
+      </div>
+    )
   }
 
   if (!user) {
@@ -1587,7 +1604,7 @@ function App() {
         {/* Footer */}
         <div style={{ marginTop: 'auto', padding: '15px', borderTop: `1px solid ${T.border.primary}` }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
-            <span style={{ width: '36px', height: '36px', borderRadius: T.radius.md, background: `linear-gradient(135deg, ${T.accent.primary}, ${T.accent.primaryHover})`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: '14px', fontWeight: 600 }}>
+            <span style={{ width: '36px', height: '36px', borderRadius: T.radius.md, background: `linear-gradient(135deg, ${T.accent.primary}, ${T.accent.primaryHover})`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: T.text.onAccent, fontSize: '14px', fontWeight: 600 }}>
               {user.name?.[0] || 'U'}
             </span>
             <div style={{ flex: 1, overflow: 'hidden' }}>
@@ -1739,7 +1756,7 @@ function App() {
                       width: '100%',
                       padding: '14px',
                       background: T.accent.success,
-                      color: T.text.inverse,
+                      color: T.text.onAccent,
                       border: 'none',
                       borderRadius: T.radius.md,
                       fontSize: '16px',
@@ -1837,7 +1854,7 @@ function App() {
                     <button
                       type="submit"
                       disabled={savingMemory || !newMemory.content.trim()}
-                      style={{ padding: '10px 18px', background: T.accent.primary, color: '#fff', border: 'none', borderRadius: T.radius.md, cursor: 'pointer', fontSize: '14px', fontWeight: 500, opacity: (savingMemory || !newMemory.content.trim()) ? 0.6 : 1, transition: T.transition.fast }}
+                      style={{ padding: '10px 18px', background: T.accent.primary, color: T.text.onAccent, border: 'none', borderRadius: T.radius.md, cursor: (savingMemory || !newMemory.content.trim()) ? 'not-allowed' : 'pointer', fontSize: '14px', fontWeight: 500, opacity: (savingMemory || !newMemory.content.trim()) ? 0.6 : 1, transition: T.transition.fast }}
                     >
                       {savingMemory ? 'Saving...' : 'Add Memory'}
                     </button>
@@ -2009,7 +2026,7 @@ function App() {
                     onFocus={e => e.target.style.borderColor = T.accent.primary}
                     onBlur={e => e.target.style.borderColor = T.border.primary}
                   />
-                  {newTag && <button onClick={handleAddTag} style={{ background: T.accent.primary, color: '#fff', border: 'none', borderRadius: '12px', padding: '4px 10px', fontSize: '11px', cursor: 'pointer', transition: T.transition.fast }}>+</button>}
+                  {newTag && <button onClick={handleAddTag} style={{ background: T.accent.primary, color: T.text.onAccent, border: 'none', borderRadius: '12px', padding: '4px 10px', fontSize: '11px', cursor: 'pointer', transition: T.transition.fast }}>+</button>}
                 </div>
               </div>
 
@@ -2064,7 +2081,7 @@ function App() {
               )}
               {messages.map((msg, i) => (
                 <div key={msg.id || i} style={{ marginBottom: '20px', display: 'flex', gap: '12px', position: 'relative' }} className="message-container">
-                  <div style={{ width: '38px', height: '38px', borderRadius: T.radius.md, background: msg.role === 'user' ? `linear-gradient(135deg, ${T.accent.primary}, ${T.accent.primaryHover})` : `linear-gradient(135deg, ${T.accent.success}, #34d399)`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: '14px', flexShrink: 0, fontWeight: 600 }}>
+                  <div style={{ width: '38px', height: '38px', borderRadius: T.radius.md, background: msg.role === 'user' ? `linear-gradient(135deg, ${T.accent.primary}, ${T.accent.primaryHover})` : `linear-gradient(135deg, ${T.accent.success}, ${T.accent.successHover})`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: T.text.onAccent, fontSize: '14px', flexShrink: 0, fontWeight: 600 }}>
                     {msg.role === 'user' ? (user.name?.[0] || 'U') : (msg.employee_id ? getEmployeeName(msg.employee_id)?.[0] : 'A')}
                   </div>
                   <div style={{ flex: 1 }}>
@@ -2078,14 +2095,14 @@ function App() {
                         </span>
                       )}
                       <button
-                        onClick={() => copyToClipboard(msg.content)}
-                        style={{ background: 'none', border: 'none', color: T.text.tertiary, cursor: 'pointer', padding: '2px 6px', fontSize: '12px', opacity: 0.6, transition: T.transition.fast }}
+                        onClick={() => copyToClipboard(msg.content, msg.id)}
+                        style={{ background: 'none', border: 'none', color: copiedMessageId === msg.id ? T.accent.success : T.text.tertiary, cursor: 'pointer', padding: '2px 6px', fontSize: '12px', opacity: copiedMessageId === msg.id ? 1 : 0.6, transition: T.transition.fast }}
                         title="Copy message"
                         aria-label="Copy message to clipboard"
-                        onMouseEnter={(e) => { e.target.style.opacity = 1; e.target.style.color = T.accent.primary }}
-                        onMouseLeave={(e) => { e.target.style.opacity = 0.6; e.target.style.color = T.text.tertiary }}
+                        onMouseEnter={(e) => { if (copiedMessageId !== msg.id) { e.target.style.opacity = 1; e.target.style.color = T.accent.primary }}}
+                        onMouseLeave={(e) => { if (copiedMessageId !== msg.id) { e.target.style.opacity = 0.6; e.target.style.color = T.text.tertiary }}}
                       >
-                        Copy
+                        {copiedMessageId === msg.id ? '✓ Copied' : 'Copy'}
                       </button>
                       {msg.id && !isStreaming && (
                         <button
@@ -2133,7 +2150,7 @@ function App() {
                           autoFocus
                         />
                         <div style={{ display: 'flex', gap: '8px' }}>
-                          <button onClick={() => handleEditMessage(msg.id)} style={{ padding: '6px 12px', background: T.accent.primary, color: '#fff', border: 'none', borderRadius: T.radius.sm, cursor: 'pointer', fontSize: '13px', fontWeight: 500, transition: T.transition.fast }}>Save</button>
+                          <button onClick={() => handleEditMessage(msg.id)} style={{ padding: '6px 12px', background: T.accent.primary, color: T.text.onAccent, border: 'none', borderRadius: T.radius.sm, cursor: 'pointer', fontSize: '13px', fontWeight: 500, transition: T.transition.fast }}>Save</button>
                           <button onClick={() => { setEditingMessage(null); setEditMessageContent('') }} style={{ padding: '6px 12px', background: T.bg.tertiary, color: T.text.primary, border: `1px solid ${T.border.primary}`, borderRadius: T.radius.sm, cursor: 'pointer', fontSize: '13px' }}>Cancel</button>
                         </div>
                       </div>
@@ -2146,8 +2163,21 @@ function App() {
                 </div>
               ))}
               {chatError && (
-                <div style={{ padding: '15px', background: T.accent.dangerMuted, borderRadius: T.radius.md, color: T.accent.danger, marginBottom: '15px', border: `1px solid ${T.accent.danger}40` }}>
-                  {chatError}
+                <div
+                  role="alert"
+                  aria-live="polite"
+                  style={{ padding: '15px', background: T.accent.dangerMuted, borderRadius: T.radius.md, color: T.accent.danger, marginBottom: '15px', border: `1px solid ${T.accent.danger}40`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px' }}
+                >
+                  <span>{chatError}</span>
+                  <button
+                    onClick={() => setChatError(null)}
+                    style={{ background: 'none', border: 'none', color: T.accent.danger, cursor: 'pointer', fontSize: '18px', padding: '0 4px', opacity: 0.7, transition: T.transition.fast }}
+                    onMouseEnter={e => e.target.style.opacity = 1}
+                    onMouseLeave={e => e.target.style.opacity = 0.7}
+                    aria-label="Dismiss error"
+                  >
+                    ×
+                  </button>
                 </div>
               )}
               <div ref={messagesEndRef} />
@@ -2172,7 +2202,7 @@ function App() {
                     <button
                       onClick={() => fileInputRef.current?.click()}
                       disabled={isStreaming || uploading || uploadedFiles.length >= 5}
-                      style={{ ...styles.btn, background: T.bg.hover, color: T.text.primary, opacity: (isStreaming || uploading || uploadedFiles.length >= 5) ? 0.6 : 1, flexShrink: 0, border: `1px solid ${T.border.primary}` }}
+                      style={{ ...styles.btn, background: T.bg.hover, color: T.text.primary, opacity: (isStreaming || uploading || uploadedFiles.length >= 5) ? 0.6 : 1, cursor: (isStreaming || uploading || uploadedFiles.length >= 5) ? 'not-allowed' : 'pointer', flexShrink: 0, border: `1px solid ${T.border.primary}` }}
                     >
                       {uploading ? '...' : '+'}
                     </button>
@@ -2250,7 +2280,7 @@ function App() {
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
-                            color: '#fff',
+                            color: T.text.onAccent,
                             fontSize: '12px',
                             fontWeight: 600
                           }}>
@@ -2265,7 +2295,7 @@ function App() {
                     </div>
                   )}
                 </div>
-                <button onClick={sendMessage} disabled={isStreaming || !chatInput.trim()} style={{ ...styles.btn, background: T.accent.primary, color: '#fff', opacity: isStreaming ? 0.6 : 1, flexShrink: 0 }}>
+                <button onClick={sendMessage} disabled={isStreaming || !chatInput.trim()} style={{ ...styles.btn, background: T.accent.primary, color: T.text.onAccent, opacity: (isStreaming || !chatInput.trim()) ? 0.6 : 1, cursor: (isStreaming || !chatInput.trim()) ? 'not-allowed' : 'pointer', flexShrink: 0 }}>
                   {isStreaming ? 'Sending...' : 'Send'}
                 </button>
               </div>
@@ -2283,7 +2313,7 @@ function App() {
                   <h2 style={{ color: T.text.primary, margin: 0, fontSize: '20px', fontWeight: 600 }}>Your Team</h2>
                   <button
                     onClick={() => { setShowEmployeeModal(true); setEditingEmployee(null); setEmployeeForm({ name: '', role: '', instructions: '', model: 'gpt-4' }) }}
-                    style={{ padding: '10px 18px', background: T.accent.primary, color: '#fff', border: 'none', borderRadius: T.radius.md, cursor: 'pointer', fontSize: '14px', fontWeight: 500, transition: T.transition.fast }}
+                    style={{ padding: '10px 18px', background: T.accent.primary, color: T.text.onAccent, border: 'none', borderRadius: T.radius.md, cursor: 'pointer', fontSize: '14px', fontWeight: 500, transition: T.transition.fast }}
                   >
                     + Add Employee
                   </button>
@@ -2315,11 +2345,11 @@ function App() {
                             width: '48px',
                             height: '48px',
                             borderRadius: T.radius.md,
-                            background: `linear-gradient(135deg, ${T.accent.success}, #34d399)`,
+                            background: `linear-gradient(135deg, ${T.accent.success}, ${T.accent.successHover})`,
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
-                            color: '#fff',
+                            color: T.text.onAccent,
                             fontSize: '20px',
                             fontWeight: 600,
                             flexShrink: 0
@@ -2410,7 +2440,7 @@ function App() {
                 </select>
               )}
               <div style={{ display: 'flex', gap: '10px' }}>
-                <button type="submit" style={{ ...styles.btn, background: T.accent.primary, color: T.text.inverse }}>Save</button>
+                <button type="submit" style={{ ...styles.btn, background: T.accent.primary, color: T.text.onAccent }}>Save</button>
                 <button type="button" onClick={() => setShowProjectModal(false)} style={{ ...styles.btn, background: T.bg.hover, color: T.text.primary, border: `1px solid ${T.border.primary}` }}>Cancel</button>
               </div>
             </form>
@@ -2460,15 +2490,15 @@ function App() {
                 </optgroup>
               </select>
               <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-                <button type="submit" style={{ ...styles.btn, background: T.accent.primary, color: T.text.inverse }}>Save</button>
+                <button type="submit" style={{ ...styles.btn, background: T.accent.primary, color: T.text.onAccent }}>Save</button>
                 <button type="button" onClick={() => setShowEmployeeModal(false)} style={{ ...styles.btn, background: T.bg.hover, color: T.text.primary, border: `1px solid ${T.border.primary}` }}>Cancel</button>
                 <div style={{ flex: 1 }}></div>
                 {editingEmployee && (
-                  <button type="button" onClick={handleExportEmployee} style={{ ...styles.btn, background: T.accent.info, color: T.text.inverse, fontSize: '12px' }} title="Export configuration">
+                  <button type="button" onClick={handleExportEmployee} style={{ ...styles.btn, background: T.accent.info, color: T.text.onAccent, fontSize: '12px' }} title="Export configuration">
                     Export
                   </button>
                 )}
-                <label style={{ ...styles.btn, background: T.accent.primary, color: T.text.inverse, fontSize: '12px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', margin: 0 }}>
+                <label style={{ ...styles.btn, background: T.accent.primary, color: T.text.onAccent, fontSize: '12px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', margin: 0 }}>
                   Import
                   <input type="file" accept=".json" onChange={handleImportEmployee} style={{ display: 'none' }} />
                 </label>
@@ -2500,7 +2530,7 @@ function App() {
               <button
                 onClick={handleFileUpload}
                 disabled={uploading}
-                style={{ ...styles.btn, background: T.accent.primary, color: T.text.inverse, flex: 1, opacity: uploading ? 0.6 : 1 }}
+                style={{ ...styles.btn, background: T.accent.primary, color: T.text.onAccent, flex: 1, opacity: uploading ? 0.6 : 1, cursor: uploading ? 'not-allowed' : 'pointer' }}
               >
                 {uploading ? 'Uploading...' : 'Upload File'}
               </button>
@@ -2579,8 +2609,8 @@ function App() {
                         <div style={{ fontSize: '11px', color: T.text.secondary }}>Suggested by {s.employee_name}</div>
                       </div>
                       <div style={{ display: 'flex', gap: '6px' }}>
-                        <button onClick={() => handleApproveMemorySuggestion(s.id)} style={{ padding: '4px 10px', background: T.accent.success, color: T.text.inverse, border: 'none', borderRadius: T.radius.sm, cursor: 'pointer', fontSize: '12px' }}>Approve</button>
-                        <button onClick={() => handleRejectMemorySuggestion(s.id)} style={{ padding: '4px 10px', background: T.accent.danger, color: T.text.inverse, border: 'none', borderRadius: T.radius.sm, cursor: 'pointer', fontSize: '12px' }}>Reject</button>
+                        <button onClick={() => handleApproveMemorySuggestion(s.id)} style={{ padding: '4px 10px', background: T.accent.success, color: T.text.onAccent, border: 'none', borderRadius: T.radius.sm, cursor: 'pointer', fontSize: '12px' }}>Approve</button>
+                        <button onClick={() => handleRejectMemorySuggestion(s.id)} style={{ padding: '4px 10px', background: T.accent.danger, color: T.text.onAccent, border: 'none', borderRadius: T.radius.sm, cursor: 'pointer', fontSize: '12px' }}>Reject</button>
                       </div>
                     </div>
                   ))}
@@ -2597,7 +2627,7 @@ function App() {
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
                       <div>
                         <h4 style={{ margin: 0, color: T.text.primary }}>{template.name}</h4>
-                        {template.is_default && <span style={{ fontSize: '10px', padding: '2px 6px', background: T.accent.primary, color: T.text.inverse, borderRadius: '4px', marginLeft: '6px' }}>Default</span>}
+                        {template.is_default && <span style={{ fontSize: '10px', padding: '2px 6px', background: T.accent.primary, color: T.text.onAccent, borderRadius: '4px', marginLeft: '6px' }}>Default</span>}
                         {template.is_undeletable && <span style={{ fontSize: '10px', padding: '2px 6px', background: T.bg.hover, color: T.text.secondary, borderRadius: '4px', marginLeft: '4px' }}>Required</span>}
                       </div>
                       {template.in_use && (
@@ -2638,7 +2668,7 @@ function App() {
                       {!template.in_use ? (
                         <button
                           onClick={() => handleAddRoleFromTemplate(template.id)}
-                          style={{ padding: '6px 14px', background: T.accent.success, color: T.text.inverse, border: 'none', borderRadius: T.radius.sm, cursor: 'pointer', fontSize: '13px' }}
+                          style={{ padding: '6px 14px', background: T.accent.success, color: T.text.onAccent, border: 'none', borderRadius: T.radius.sm, cursor: 'pointer', fontSize: '13px' }}
                         >
                           Add to Team
                         </button>
@@ -2654,7 +2684,7 @@ function App() {
                             <div key={emp.id} style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
                               <button
                                 onClick={() => handleCloneEmployee(emp.id)}
-                                style={{ padding: '4px 8px', background: T.accent.info, color: T.text.inverse, border: 'none', borderRadius: T.radius.sm, cursor: 'pointer', fontSize: '11px' }}
+                                style={{ padding: '4px 8px', background: T.accent.info, color: T.text.onAccent, border: 'none', borderRadius: T.radius.sm, cursor: 'pointer', fontSize: '11px' }}
                                 title={`Clone ${emp.name}`}
                               >
                                 Clone
@@ -2662,7 +2692,7 @@ function App() {
                               {!emp.is_default && (
                                 <button
                                   onClick={() => handleResetToTemplate(emp.id)}
-                                  style={{ padding: '4px 8px', background: T.accent.warning, color: T.text.inverse, border: 'none', borderRadius: T.radius.sm, cursor: 'pointer', fontSize: '11px' }}
+                                  style={{ padding: '4px 8px', background: T.accent.warning, color: T.text.onAccent, border: 'none', borderRadius: T.radius.sm, cursor: 'pointer', fontSize: '11px' }}
                                   title="Reset to template defaults"
                                 >
                                   Reset
@@ -2703,7 +2733,7 @@ function App() {
                 style={{
                   ...styles.btn,
                   background: confirmDialog.confirmStyle === 'warning' ? T.accent.warning : T.accent.danger,
-                  color: T.text.inverse,
+                  color: T.text.onAccent,
                   minWidth: '100px'
                 }}
               >
