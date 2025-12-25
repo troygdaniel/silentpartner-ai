@@ -415,22 +415,30 @@ function App() {
     } catch (err) { showToast('Failed to clone role', 'error') }
   }
 
-  const handleResetToTemplate = async (employeeId) => {
-    if (!confirm('Reset this role to its template defaults? Your custom instructions will be preserved.')) return
-    try {
-      const res = await fetch(`/api/roles/employee/${employeeId}/reset-to-template`, {
-        method: 'POST',
-        headers: API_HEADERS(),
-        body: JSON.stringify({ preserve_user_instructions: true })
-      })
-      if (res.ok) {
-        showToast('Role reset to template defaults', 'success')
-        fetchEmployees()
-      } else {
-        const err = await res.json()
-        showToast(err.detail || 'Failed to reset', 'error')
+  const handleResetToTemplate = (employeeId) => {
+    setConfirmDialog({
+      title: 'Reset to Template',
+      message: 'Reset this role to its template defaults? Your custom instructions will be preserved.',
+      confirmText: 'Reset',
+      confirmStyle: 'warning',
+      onConfirm: async () => {
+        try {
+          const res = await fetch(`/api/roles/employee/${employeeId}/reset-to-template`, {
+            method: 'POST',
+            headers: API_HEADERS(),
+            body: JSON.stringify({ preserve_user_instructions: true })
+          })
+          if (res.ok) {
+            showToast('Role reset to template defaults', 'success')
+            fetchEmployees()
+          } else {
+            const err = await res.json()
+            showToast(err.detail || 'Failed to reset', 'error')
+          }
+        } catch (err) { showToast('Failed to reset role', 'error') }
+        setConfirmDialog(null)
       }
-    } catch (err) { showToast('Failed to reset role', 'error') }
+    })
   }
 
   const handleApproveMemorySuggestion = async (suggestionId) => {
@@ -638,18 +646,26 @@ function App() {
     } catch { showToast('Connection error', 'error') }
   }
 
-  const handleDeleteProject = async (id) => {
-    if (!confirm('Delete this project and all its messages?')) return
-    try {
-      const res = await fetch(`/api/projects/${id}`, { method: 'DELETE', headers: API_HEADERS() })
-      if (res.ok) {
-        if (activeChannel?.type === 'project' && activeChannel?.id === id) setActiveChannel(null)
-        fetchProjects()
-        showToast('Project deleted', 'success')
-      } else {
-        showToast('Failed to delete project', 'error')
+  const handleDeleteProject = (id) => {
+    setConfirmDialog({
+      title: 'Delete Project',
+      message: 'Delete this project and all its messages? This action cannot be undone.',
+      confirmText: 'Delete',
+      confirmStyle: 'danger',
+      onConfirm: async () => {
+        try {
+          const res = await fetch(`/api/projects/${id}`, { method: 'DELETE', headers: API_HEADERS() })
+          if (res.ok) {
+            if (activeChannel?.type === 'project' && activeChannel?.id === id) setActiveChannel(null)
+            fetchProjects()
+            showToast('Project deleted', 'success')
+          } else {
+            showToast('Failed to delete project', 'error')
+          }
+        } catch { showToast('Connection error', 'error') }
+        setConfirmDialog(null)
       }
-    } catch { showToast('Connection error', 'error') }
+    })
   }
 
   // Employee CRUD
@@ -672,18 +688,27 @@ function App() {
     } catch { showToast('Connection error', 'error') }
   }
 
-  const handleDeleteEmployee = async (id) => {
-    if (!confirm('Delete this employee?')) return
-    try {
-      const res = await fetch(`/api/employees/${id}`, { method: 'DELETE', headers: API_HEADERS() })
-      if (res.ok) {
-        if (activeChannel?.type === 'dm' && activeChannel?.id === id) setActiveChannel(null)
-        fetchEmployees()
-        showToast('Employee deleted', 'success')
-      } else {
-        showToast('Failed to delete employee', 'error')
+  const handleDeleteEmployee = (id) => {
+    const employee = employees.find(e => e.id === id)
+    setConfirmDialog({
+      title: 'Delete Employee',
+      message: `Delete ${employee?.name || 'this employee'}? This will remove all their conversation history.`,
+      confirmText: 'Delete',
+      confirmStyle: 'danger',
+      onConfirm: async () => {
+        try {
+          const res = await fetch(`/api/employees/${id}`, { method: 'DELETE', headers: API_HEADERS() })
+          if (res.ok) {
+            if (activeChannel?.type === 'dm' && activeChannel?.id === id) setActiveChannel(null)
+            fetchEmployees()
+            showToast('Employee deleted', 'success')
+          } else {
+            showToast('Failed to delete employee', 'error')
+          }
+        } catch { showToast('Connection error', 'error') }
+        setConfirmDialog(null)
       }
-    } catch { showToast('Connection error', 'error') }
+    })
   }
 
   // API Keys
@@ -1030,20 +1055,28 @@ function App() {
   }
 
   // Delete message
-  const handleDeleteMessage = async (messageId) => {
-    if (!confirm('Delete this message?')) return
-    try {
-      const res = await fetch(`/api/messages/${messageId}`, {
-        method: 'DELETE',
-        headers: API_HEADERS()
-      })
-      if (res.ok) {
-        setMessages(messages.filter(m => m.id !== messageId))
-        showToast('Message deleted', 'success')
-      } else {
-        showToast('Failed to delete message', 'error')
+  const handleDeleteMessage = (messageId) => {
+    setConfirmDialog({
+      title: 'Delete Message',
+      message: 'Delete this message? This action cannot be undone.',
+      confirmText: 'Delete',
+      confirmStyle: 'danger',
+      onConfirm: async () => {
+        try {
+          const res = await fetch(`/api/messages/${messageId}`, {
+            method: 'DELETE',
+            headers: API_HEADERS()
+          })
+          if (res.ok) {
+            setMessages(messages.filter(m => m.id !== messageId))
+            showToast('Message deleted', 'success')
+          } else {
+            showToast('Failed to delete message', 'error')
+          }
+        } catch { showToast('Connection error', 'error') }
+        setConfirmDialog(null)
       }
-    } catch { showToast('Connection error', 'error') }
+    })
   }
 
   // Toggle pin message
@@ -1477,7 +1510,7 @@ function App() {
           <div
             key={p.id}
             onClick={() => setActiveChannel({ type: 'project', id: p.id, name: p.name })}
-            onContextMenu={(e) => { e.preventDefault(); if (confirm('Delete project?')) handleDeleteProject(p.id) }}
+            onContextMenu={(e) => { e.preventDefault(); handleDeleteProject(p.id) }}
             style={{ ...styles.channel, ...(activeChannel?.type === 'project' && activeChannel?.id === p.id ? styles.channelActive : {}), opacity: p.status === 'archived' ? 0.5 : 1 }}
             className="sidebar-channel"
             onMouseEnter={e => { if (!(activeChannel?.type === 'project' && activeChannel?.id === p.id)) e.currentTarget.style.background = T.bg.hover }}
@@ -1487,13 +1520,15 @@ function App() {
               onClick={(e) => handleToggleProjectStar(p.id, e)}
               style={{ cursor: 'pointer', color: p.starred ? T.accent.warning : T.text.tertiary, fontSize: '12px', transition: T.transition.fast }}
               title={p.starred ? 'Unstar' : 'Star'}
+              role="button"
+              aria-label={p.starred ? 'Unstar project' : 'Star project'}
             >
               {p.starred ? '★' : '☆'}
             </span>
             <span style={{ color: T.accent.primary, fontWeight: 500 }}>#</span>
             <span style={{ flex: 1, color: T.text.primary }}>{p.name}</span>
-            {p.status === 'completed' && <span style={{ fontSize: '10px', color: T.accent.success }} title="Completed">✓</span>}
-            {p.status === 'archived' && <span style={{ fontSize: '10px', color: T.text.tertiary }} title="Archived">⊘</span>}
+            {p.status === 'completed' && <span style={{ fontSize: '10px', color: T.accent.success }} title="Completed" aria-label="Project completed">✓</span>}
+            {p.status === 'archived' && <span style={{ fontSize: '10px', color: T.text.tertiary }} title="Archived" aria-label="Project archived">⊘</span>}
           </div>
         ))}
 
@@ -1514,7 +1549,7 @@ function App() {
           <div
             key={e.id}
             onClick={() => setActiveChannel({ type: 'dm', id: e.id, name: e.name })}
-            onContextMenu={(ev) => { ev.preventDefault(); if (!e.is_default && confirm('Delete employee?')) handleDeleteEmployee(e.id) }}
+            onContextMenu={(ev) => { ev.preventDefault(); if (!e.is_default) handleDeleteEmployee(e.id) }}
             style={{ ...styles.channel, ...(activeChannel?.type === 'dm' && activeChannel?.id === e.id ? styles.channelActive : {}), flexDirection: 'column', alignItems: 'flex-start', gap: '2px', opacity: e.archived ? 0.5 : 1 }}
             className="sidebar-channel"
             onMouseEnter={ev => { if (!(activeChannel?.type === 'dm' && activeChannel?.id === e.id)) ev.currentTarget.style.background = T.bg.hover }}
@@ -1525,16 +1560,20 @@ function App() {
                 onClick={(ev) => handleToggleEmployeeStar(e.id, ev)}
                 style={{ cursor: 'pointer', color: e.starred ? T.accent.warning : T.text.tertiary, fontSize: '12px', transition: T.transition.fast }}
                 title={e.starred ? 'Unstar' : 'Star'}
+                role="button"
+                aria-label={e.starred ? 'Unstar employee' : 'Star employee'}
               >
                 {e.starred ? '★' : '☆'}
               </span>
-              <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: e.archived ? T.text.tertiary : T.accent.success, flexShrink: 0 }}></span>
+              <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: e.archived ? T.text.tertiary : T.accent.success, flexShrink: 0 }} aria-label={e.archived ? 'Offline' : 'Online'}></span>
               <span style={{ fontWeight: 500, flex: 1, color: T.text.primary }}>{e.name}</span>
-              {e.archived && <span style={{ fontSize: '10px', color: T.text.tertiary }} title="Archived">⊘</span>}
+              {e.archived && <span style={{ fontSize: '10px', color: T.text.tertiary }} title="Archived" aria-label="Employee archived">⊘</span>}
               <span
                 onClick={(ev) => handleToggleArchiveEmployee(e.id, ev)}
                 style={{ cursor: 'pointer', color: T.text.tertiary, fontSize: '11px', opacity: 0.6, transition: T.transition.fast }}
                 title={e.archived ? 'Unarchive' : 'Archive'}
+                role="button"
+                aria-label={e.archived ? 'Unarchive employee' : 'Archive employee'}
                 onMouseEnter={(ev) => { ev.currentTarget.style.opacity = '1'; ev.currentTarget.style.color = T.accent.primary }}
                 onMouseLeave={(ev) => { ev.currentTarget.style.opacity = '0.6'; ev.currentTarget.style.color = T.text.tertiary }}
               >
@@ -1699,14 +1738,15 @@ function App() {
                     style={{
                       width: '100%',
                       padding: '14px',
-                      background: '#28a745',
-                      color: '#fff',
+                      background: T.accent.success,
+                      color: T.text.inverse,
                       border: 'none',
-                      borderRadius: '8px',
+                      borderRadius: T.radius.md,
                       fontSize: '16px',
                       fontWeight: 500,
                       cursor: savingKeys ? 'not-allowed' : 'pointer',
-                      opacity: savingKeys ? 0.7 : 1
+                      opacity: savingKeys ? 0.7 : 1,
+                      transition: T.transition.fast
                     }}
                   >
                     {savingKeys ? 'Saving...' : 'Save API Keys'}
@@ -1885,7 +1925,7 @@ function App() {
                 {activeChannel.type === 'project' && (() => {
                   const project = projects.find(p => p.id === activeChannel.id)
                   return project?.description ? (
-                    <div style={{ fontSize: '12px', color: '#888', marginTop: '2px', maxWidth: '400px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={project.description}>
+                    <div style={{ fontSize: '12px', color: T.text.tertiary, marginTop: '2px', maxWidth: '400px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={project.description}>
                       {project.description}
                     </div>
                   ) : null
@@ -2041,6 +2081,7 @@ function App() {
                         onClick={() => copyToClipboard(msg.content)}
                         style={{ background: 'none', border: 'none', color: T.text.tertiary, cursor: 'pointer', padding: '2px 6px', fontSize: '12px', opacity: 0.6, transition: T.transition.fast }}
                         title="Copy message"
+                        aria-label="Copy message to clipboard"
                         onMouseEnter={(e) => { e.target.style.opacity = 1; e.target.style.color = T.accent.primary }}
                         onMouseLeave={(e) => { e.target.style.opacity = 0.6; e.target.style.color = T.text.tertiary }}
                       >
@@ -2051,6 +2092,7 @@ function App() {
                           onClick={() => handleTogglePin(msg.id)}
                           style={{ background: 'none', border: 'none', color: msg.pinned ? T.accent.warning : T.text.tertiary, cursor: 'pointer', padding: '2px 6px', fontSize: '12px', opacity: msg.pinned ? 1 : 0.6, transition: T.transition.fast }}
                           title={msg.pinned ? 'Unpin message' : 'Pin message'}
+                          aria-label={msg.pinned ? 'Unpin message' : 'Pin message'}
                           onMouseEnter={(e) => e.target.style.opacity = 1}
                           onMouseLeave={(e) => e.target.style.opacity = msg.pinned ? 1 : 0.6}
                         >
@@ -2063,6 +2105,7 @@ function App() {
                             onClick={() => { setEditingMessage(msg.id); setEditMessageContent(msg.content) }}
                             style={{ background: 'none', border: 'none', color: T.text.tertiary, cursor: 'pointer', padding: '2px 6px', fontSize: '12px', opacity: 0.6, transition: T.transition.fast }}
                             title="Edit message"
+                            aria-label="Edit message"
                             onMouseEnter={(e) => { e.target.style.opacity = 1; e.target.style.color = T.accent.primary }}
                             onMouseLeave={(e) => { e.target.style.opacity = 0.6; e.target.style.color = T.text.tertiary }}
                           >
@@ -2072,6 +2115,7 @@ function App() {
                             onClick={() => handleDeleteMessage(msg.id)}
                             style={{ background: 'none', border: 'none', color: T.accent.danger, cursor: 'pointer', padding: '2px 6px', fontSize: '12px', opacity: 0.6, transition: T.transition.fast }}
                             title="Delete message"
+                            aria-label="Delete message"
                             onMouseEnter={(e) => e.target.style.opacity = 1}
                             onMouseLeave={(e) => e.target.style.opacity = 0.6}
                           >
@@ -2102,7 +2146,7 @@ function App() {
                 </div>
               ))}
               {chatError && (
-                <div style={{ padding: '15px', background: '#ffe6e6', borderRadius: '8px', color: '#cc0000', marginBottom: '15px' }}>
+                <div style={{ padding: '15px', background: T.accent.dangerMuted, borderRadius: T.radius.md, color: T.accent.danger, marginBottom: '15px', border: `1px solid ${T.accent.danger}40` }}>
                   {chatError}
                 </div>
               )}
@@ -2446,10 +2490,10 @@ function App() {
               <div style={{ fontWeight: 'bold', marginBottom: '4px', color: T.text.primary }}>{filePreview.name}</div>
               <div style={{ fontSize: '12px', color: T.text.secondary }}>{(filePreview.size / 1024).toFixed(1)} KB</div>
             </div>
-            <div style={{ flex: 1, overflow: 'auto', background: '#1e1e1e', borderRadius: '6px', padding: '12px', marginBottom: '15px' }}>
-              <pre style={{ margin: 0, color: '#d4d4d4', fontSize: '12px', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+            <div style={{ flex: 1, overflow: 'auto', background: T.bg.tertiary, borderRadius: T.radius.sm, padding: '12px', marginBottom: '15px', border: `1px solid ${T.border.subtle}` }}>
+              <pre style={{ margin: 0, color: T.text.secondary, fontSize: '12px', whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontFamily: 'monospace' }}>
                 {filePreview.content}
-                {filePreview.content.length >= 5000 && <span style={{ color: '#888' }}>... (truncated)</span>}
+                {filePreview.content.length >= 5000 && <span style={{ color: T.text.tertiary }}>... (truncated)</span>}
               </pre>
             </div>
             <div style={{ display: 'flex', gap: '10px' }}>
@@ -2656,9 +2700,14 @@ function App() {
               </button>
               <button
                 onClick={confirmDialog.onConfirm}
-                style={{ ...styles.btn, background: T.accent.danger, color: T.text.inverse, minWidth: '100px' }}
+                style={{
+                  ...styles.btn,
+                  background: confirmDialog.confirmStyle === 'warning' ? T.accent.warning : T.accent.danger,
+                  color: T.text.inverse,
+                  minWidth: '100px'
+                }}
               >
-                Delete
+                {confirmDialog.confirmText || 'Delete'}
               </button>
             </div>
           </div>
