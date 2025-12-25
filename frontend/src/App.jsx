@@ -1,5 +1,81 @@
 import { useState, useEffect, useRef } from 'react'
 
+// ============================================================================
+// THEME - Devin.ai-inspired dark theme with purple/violet accents
+// ============================================================================
+const T = {
+  // Backgrounds
+  bg: {
+    primary: '#0a0a0b',      // Deepest - main background
+    secondary: '#111114',    // Cards, sidebar
+    tertiary: '#1a1a1f',     // Inputs, hover states
+    elevated: '#222228',     // Modals, dropdowns
+    hover: '#2a2a32',        // Hover states
+  },
+  // Text
+  text: {
+    primary: '#f0f0f0',      // Main text
+    secondary: '#a0a0a8',    // Secondary text
+    tertiary: '#6b6b75',     // Placeholder, disabled
+    inverse: '#0a0a0b',      // Text on light backgrounds
+  },
+  // Accent colors
+  accent: {
+    primary: '#8b5cf6',      // Violet - primary actions
+    primaryHover: '#a78bfa', // Lighter violet - hover
+    primaryMuted: 'rgba(139, 92, 246, 0.15)', // For backgrounds
+    success: '#10b981',      // Emerald green
+    successMuted: 'rgba(16, 185, 129, 0.15)',
+    danger: '#ef4444',       // Red
+    dangerMuted: 'rgba(239, 68, 68, 0.15)',
+    warning: '#f59e0b',      // Amber
+    warningMuted: 'rgba(245, 158, 11, 0.15)',
+    info: '#06b6d4',         // Cyan
+    infoMuted: 'rgba(6, 182, 212, 0.15)',
+  },
+  // Borders
+  border: {
+    primary: '#2a2a32',
+    subtle: '#1f1f26',
+    focus: '#8b5cf6',
+  },
+  // Shadows
+  shadow: {
+    sm: '0 2px 4px rgba(0,0,0,0.3)',
+    md: '0 4px 12px rgba(0,0,0,0.4)',
+    lg: '0 8px 24px rgba(0,0,0,0.5)',
+    glow: '0 0 20px rgba(139, 92, 246, 0.3)',
+  },
+  // Transitions
+  transition: {
+    fast: 'all 0.15s ease',
+    normal: 'all 0.2s ease',
+    slow: 'all 0.3s ease',
+  },
+  // Radius
+  radius: {
+    sm: '6px',
+    md: '8px',
+    lg: '12px',
+    xl: '16px',
+  }
+}
+
+// Provider colors (adjusted for dark theme)
+const PROVIDER_COLORS = {
+  openai: { bg: 'rgba(16, 163, 127, 0.15)', text: '#10a37f', icon: '#10a37f' },
+  anthropic: { bg: 'rgba(217, 119, 6, 0.15)', text: '#d97706', icon: '#d97706' },
+}
+
+// Memory category colors (adjusted for dark theme)
+const CATEGORY_COLORS = {
+  preference: { bg: 'rgba(99, 102, 241, 0.15)', text: '#818cf8' },
+  fact: { bg: 'rgba(245, 158, 11, 0.15)', text: '#fbbf24' },
+  context: { bg: 'rgba(6, 182, 212, 0.15)', text: '#22d3ee' },
+  instruction: { bg: 'rgba(236, 72, 153, 0.15)', text: '#f472b6' },
+  default: { bg: 'rgba(107, 114, 128, 0.15)', text: '#9ca3af' },
+}
+
 const API_HEADERS = () => ({
   'Authorization': `Bearer ${localStorage.getItem('token')}`,
   'Content-Type': 'application/json'
@@ -30,26 +106,27 @@ function Toast({ message, type, onClose }) {
     return () => clearTimeout(timer)
   }, [onClose])
 
-  const bgColor = type === 'success' ? '#28a745' : type === 'error' ? '#dc3545' : '#007bff'
+  const accentColor = type === 'success' ? T.accent.success : type === 'error' ? T.accent.danger : T.accent.primary
   return (
     <div style={{
       position: 'fixed',
       bottom: '20px',
       right: '20px',
-      background: bgColor,
-      color: '#fff',
-      padding: '12px 20px',
-      borderRadius: '8px',
-      boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+      background: T.bg.elevated,
+      color: T.text.primary,
+      padding: '14px 20px',
+      borderRadius: T.radius.lg,
+      boxShadow: T.shadow.lg,
       zIndex: 2000,
       display: 'flex',
       alignItems: 'center',
       gap: '12px',
       maxWidth: '400px',
-      animation: 'slideIn 0.3s ease'
+      animation: 'slideIn 0.3s ease',
+      borderLeft: `4px solid ${accentColor}`,
     }}>
-      <span>{message}</span>
-      <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', fontSize: '18px', padding: 0 }}>×</button>
+      <span style={{ flex: 1 }}>{message}</span>
+      <button onClick={onClose} style={{ background: 'none', border: 'none', color: T.text.tertiary, cursor: 'pointer', fontSize: '18px', padding: 0, transition: T.transition.fast }} onMouseOver={e => e.target.style.color = T.text.primary} onMouseOut={e => e.target.style.color = T.text.tertiary}>×</button>
     </div>
   )
 }
@@ -130,9 +207,9 @@ function renderMarkdown(text) {
       const lang = match?.[1] || ''
       const code = match?.[2] || part.slice(3, -3)
       return (
-        <pre key={i} style={{ background: '#1e1e1e', color: '#d4d4d4', padding: '12px', borderRadius: '6px', overflow: 'auto', fontSize: '13px', margin: '8px 0' }}>
-          {lang && <div style={{ color: '#888', fontSize: '11px', marginBottom: '8px' }}>{lang}</div>}
-          <code>{code}</code>
+        <pre key={i} style={{ background: T.bg.tertiary, color: T.text.primary, padding: '14px', borderRadius: T.radius.md, overflow: 'auto', fontSize: '13px', margin: '10px 0', border: `1px solid ${T.border.subtle}` }}>
+          {lang && <div style={{ color: T.accent.primary, fontSize: '11px', marginBottom: '8px', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.5px' }}>{lang}</div>}
+          <code style={{ fontFamily: "'SF Mono', 'Fira Code', Consolas, monospace" }}>{code}</code>
         </pre>
       )
     }
@@ -142,7 +219,7 @@ function renderMarkdown(text) {
       <span key={i}>
         {inlineCodeParts.map((p, j) => {
           if (p.startsWith('`') && p.endsWith('`')) {
-            return <code key={j} style={{ background: '#f1f1f1', padding: '2px 6px', borderRadius: '3px', fontSize: '13px' }}>{p.slice(1, -1)}</code>
+            return <code key={j} style={{ background: T.bg.tertiary, color: T.accent.primaryHover, padding: '2px 6px', borderRadius: '4px', fontSize: '13px', fontFamily: "'SF Mono', 'Fira Code', Consolas, monospace" }}>{p.slice(1, -1)}</code>
           }
           // Handle bold
           const boldParts = p.split(/(\*\*[^*]+\*\*)/g)
@@ -1178,18 +1255,18 @@ function App() {
   }
 
   if (loading) {
-    return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', background: '#1a1d21' }}><p style={{ color: '#fff' }}>Loading...</p></div>
+    return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', background: T.bg.primary }}><p style={{ color: T.text.secondary }}>Loading...</p></div>
   }
 
   if (!user) {
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100vh', background: '#1a1d21', color: '#fff', fontFamily: 'system-ui, sans-serif' }}>
-        <h1 style={{ marginBottom: '10px' }}>SilentPartner</h1>
-        <p style={{ color: '#999', marginBottom: '30px' }}>Your AI consulting team, configured by you.</p>
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100vh', background: T.bg.primary, color: T.text.primary, fontFamily: "'Inter', system-ui, sans-serif" }}>
+        <h1 style={{ marginBottom: '10px', fontSize: '32px', fontWeight: 600, letterSpacing: '-0.5px' }}>SilentPartner</h1>
+        <p style={{ color: T.text.secondary, marginBottom: '30px' }}>Your AI consulting team, configured by you.</p>
         {authStatus?.oauth_configured ? (
-          <button onClick={handleLogin} style={{ padding: '12px 24px', fontSize: '16px', backgroundColor: '#4285f4', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Sign in with Google</button>
+          <button onClick={handleLogin} style={{ padding: '14px 28px', fontSize: '15px', backgroundColor: T.accent.primary, color: 'white', border: 'none', borderRadius: T.radius.md, cursor: 'pointer', fontWeight: 500, transition: T.transition.fast, boxShadow: T.shadow.md }} onMouseOver={e => e.target.style.backgroundColor = T.accent.primaryHover} onMouseOut={e => e.target.style.backgroundColor = T.accent.primary}>Sign in with Google</button>
         ) : (
-          <p style={{ color: '#999' }}>Google OAuth not configured yet</p>
+          <p style={{ color: T.text.tertiary }}>Google OAuth not configured yet</p>
         )}
       </div>
     )
@@ -1198,34 +1275,35 @@ function App() {
   const styles = {
     sidebar: {
       width: '260px',
-      background: '#1a1d21',
-      color: '#fff',
+      background: T.bg.secondary,
+      color: T.text.primary,
       display: 'flex',
       flexDirection: 'column',
       height: '100vh',
       position: 'relative',
       transition: 'margin-left 0.3s ease',
-      marginLeft: sidebarOpen ? 0 : '-260px'
+      marginLeft: sidebarOpen ? 0 : '-260px',
+      borderRight: `1px solid ${T.border.subtle}`
     },
-    sidebarHeader: { padding: '15px', borderBottom: '1px solid #333', fontWeight: 'bold', fontSize: '18px', cursor: 'pointer' },
-    sidebarSection: { padding: '10px 15px 5px', color: '#999', fontSize: '12px', textTransform: 'uppercase', display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
-    channel: { padding: '6px 15px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' },
-    channelActive: { background: '#1164A3' },
-    addBtn: { background: 'none', border: 'none', color: '#999', cursor: 'pointer', fontSize: '16px' },
-    main: { flex: 1, display: 'flex', flexDirection: 'column', background: '#fff', height: '100vh' },
-    header: { padding: '15px 20px', borderBottom: '1px solid #ddd', display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
-    messages: { flex: 1, overflow: 'auto', padding: '20px' },
-    input: { width: '100%', padding: '8px', marginBottom: '10px', border: '1px solid #ddd', borderRadius: '4px', boxSizing: 'border-box' },
-    textarea: { width: '100%', padding: '8px', marginBottom: '10px', border: '1px solid #ddd', borderRadius: '4px', minHeight: '80px', boxSizing: 'border-box' },
-    btn: { padding: '8px 16px', fontSize: '14px', border: 'none', borderRadius: '4px', cursor: 'pointer', marginRight: '8px' },
-    modal: { position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 },
-    modalContent: { background: '#fff', padding: '25px', borderRadius: '8px', width: '400px', maxWidth: '90%' }
+    sidebarHeader: { padding: '18px 15px', borderBottom: `1px solid ${T.border.primary}`, fontWeight: 600, fontSize: '18px', cursor: 'pointer', letterSpacing: '-0.3px' },
+    sidebarSection: { padding: '12px 15px 6px', color: T.text.tertiary, fontSize: '11px', textTransform: 'uppercase', display: 'flex', justifyContent: 'space-between', alignItems: 'center', letterSpacing: '0.5px', fontWeight: 500 },
+    channel: { padding: '8px 15px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', borderRadius: T.radius.sm, margin: '2px 8px', transition: T.transition.fast },
+    channelActive: { background: T.accent.primaryMuted, color: T.accent.primaryHover },
+    addBtn: { background: 'none', border: 'none', color: T.text.tertiary, cursor: 'pointer', fontSize: '16px', transition: T.transition.fast, padding: '4px' },
+    main: { flex: 1, display: 'flex', flexDirection: 'column', background: T.bg.primary, height: '100vh' },
+    header: { padding: '16px 24px', borderBottom: `1px solid ${T.border.primary}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: T.bg.secondary },
+    messages: { flex: 1, overflow: 'auto', padding: '24px' },
+    input: { width: '100%', padding: '12px 14px', marginBottom: '12px', border: `1px solid ${T.border.primary}`, borderRadius: T.radius.md, boxSizing: 'border-box', background: T.bg.tertiary, color: T.text.primary, fontSize: '14px', transition: T.transition.fast, outline: 'none' },
+    textarea: { width: '100%', padding: '12px 14px', marginBottom: '12px', border: `1px solid ${T.border.primary}`, borderRadius: T.radius.md, minHeight: '100px', boxSizing: 'border-box', background: T.bg.tertiary, color: T.text.primary, fontSize: '14px', resize: 'vertical', outline: 'none', transition: T.transition.fast },
+    btn: { padding: '10px 18px', fontSize: '14px', border: 'none', borderRadius: T.radius.md, cursor: 'pointer', marginRight: '8px', fontWeight: 500, transition: T.transition.fast },
+    modal: { position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(4px)' },
+    modalContent: { background: T.bg.elevated, padding: '28px', borderRadius: T.radius.xl, width: '440px', maxWidth: '90%', boxShadow: T.shadow.lg, border: `1px solid ${T.border.primary}` }
   }
 
   const getEmployeeName = (id) => employees.find(e => e.id === id)?.name || 'Unknown'
 
   return (
-    <div style={{ display: 'flex', fontFamily: 'system-ui, sans-serif', height: '100vh', overflow: 'hidden' }}>
+    <div style={{ display: 'flex', fontFamily: "'Inter', system-ui, sans-serif", height: '100vh', overflow: 'hidden', background: T.bg.primary }}>
       {/* Mobile sidebar toggle */}
       <button
         onClick={() => setSidebarOpen(!sidebarOpen)}
@@ -1234,10 +1312,10 @@ function App() {
           top: '10px',
           left: sidebarOpen ? '270px' : '10px',
           zIndex: 1001,
-          background: '#1a1d21',
-          color: '#fff',
-          border: 'none',
-          borderRadius: '4px',
+          background: T.bg.elevated,
+          color: T.text.primary,
+          border: `1px solid ${T.border.primary}`,
+          borderRadius: T.radius.md,
           padding: '8px 12px',
           cursor: 'pointer',
           transition: 'left 0.3s ease',
@@ -1256,33 +1334,35 @@ function App() {
         <div style={styles.sidebarHeader} onClick={() => { setActiveChannel(null); setShowSettings(false); setMessages([]); setShowSearchResults(false) }}>SilentPartner</div>
 
         {/* Search */}
-        <div style={{ padding: '10px 15px', position: 'relative' }}>
+        <div style={{ padding: '12px 12px', position: 'relative' }}>
           <input
             type="text"
             placeholder="Search conversations..."
             value={conversationSearch}
             onChange={(e) => handleSearchConversations(e.target.value)}
-            style={{ width: '100%', padding: '8px 10px', border: '1px solid #444', borderRadius: '4px', background: '#2c2f33', color: '#fff', fontSize: '13px', boxSizing: 'border-box' }}
+            style={{ width: '100%', padding: '10px 12px', border: `1px solid ${T.border.primary}`, borderRadius: T.radius.md, background: T.bg.tertiary, color: T.text.primary, fontSize: '13px', boxSizing: 'border-box', outline: 'none', transition: T.transition.fast }}
+            onFocus={e => e.target.style.borderColor = T.accent.primary}
+            onBlur={e => e.target.style.borderColor = T.border.primary}
           />
           {showSearchResults && (
-            <div style={{ position: 'absolute', top: '100%', left: '15px', right: '15px', background: '#2c2f33', border: '1px solid #444', borderRadius: '4px', maxHeight: '300px', overflow: 'auto', zIndex: 100, boxShadow: '0 4px 12px rgba(0,0,0,0.3)' }}>
+            <div style={{ position: 'absolute', top: '100%', left: '12px', right: '12px', background: T.bg.elevated, border: `1px solid ${T.border.primary}`, borderRadius: T.radius.md, maxHeight: '300px', overflow: 'auto', zIndex: 100, boxShadow: T.shadow.lg }}>
               {searching ? (
-                <div style={{ padding: '15px', color: '#999', textAlign: 'center' }}>Searching...</div>
+                <div style={{ padding: '16px', color: T.text.tertiary, textAlign: 'center' }}>Searching...</div>
               ) : searchResults.length === 0 ? (
-                <div style={{ padding: '15px', color: '#999', textAlign: 'center' }}>No results found</div>
+                <div style={{ padding: '16px', color: T.text.tertiary, textAlign: 'center' }}>No results found</div>
               ) : (
                 searchResults.map(r => (
                   <div
                     key={r.id}
                     onClick={() => handleSearchResultClick(r)}
-                    style={{ padding: '10px 12px', cursor: 'pointer', borderBottom: '1px solid #444' }}
-                    onMouseEnter={(e) => e.currentTarget.style.background = '#3c3f44'}
+                    style={{ padding: '12px 14px', cursor: 'pointer', borderBottom: `1px solid ${T.border.subtle}`, transition: T.transition.fast }}
+                    onMouseEnter={(e) => e.currentTarget.style.background = T.bg.hover}
                     onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                   >
-                    <div style={{ fontSize: '11px', color: '#888', marginBottom: '4px' }}>
+                    <div style={{ fontSize: '11px', color: T.text.tertiary, marginBottom: '4px' }}>
                       {r.project_name ? `#${r.project_name}` : r.employee_name || 'Unknown'} • {r.role}
                     </div>
-                    <div style={{ fontSize: '13px', color: '#ddd', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    <div style={{ fontSize: '13px', color: T.text.secondary, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                       {r.content.length > 80 ? r.content.slice(0, 80) + '...' : r.content}
                     </div>
                   </div>
@@ -1295,7 +1375,7 @@ function App() {
         {/* Projects */}
         <div style={styles.sidebarSection}>
           <span>Projects</span>
-          <button onClick={() => { setShowProjectModal(true); setEditingProject(null); setProjectForm({ name: '', description: '', status: 'active', instructions: '' }) }} style={styles.addBtn}>+</button>
+          <button onClick={() => { setShowProjectModal(true); setEditingProject(null); setProjectForm({ name: '', description: '', status: 'active', instructions: '' }) }} style={styles.addBtn} onMouseOver={e => e.target.style.color = T.accent.primary} onMouseOut={e => e.target.style.color = T.text.tertiary}>+</button>
         </div>
         {projects
           .sort((a, b) => (b.starred ? 1 : 0) - (a.starred ? 1 : 0))
@@ -1306,18 +1386,20 @@ function App() {
             onContextMenu={(e) => { e.preventDefault(); if (confirm('Delete project?')) handleDeleteProject(p.id) }}
             style={{ ...styles.channel, ...(activeChannel?.type === 'project' && activeChannel?.id === p.id ? styles.channelActive : {}), opacity: p.status === 'archived' ? 0.5 : 1 }}
             className="sidebar-channel"
+            onMouseEnter={e => { if (!(activeChannel?.type === 'project' && activeChannel?.id === p.id)) e.currentTarget.style.background = T.bg.hover }}
+            onMouseLeave={e => { if (!(activeChannel?.type === 'project' && activeChannel?.id === p.id)) e.currentTarget.style.background = 'transparent' }}
           >
             <span
               onClick={(e) => handleToggleProjectStar(p.id, e)}
-              style={{ cursor: 'pointer', color: p.starred ? '#ffc107' : '#555', fontSize: '12px' }}
+              style={{ cursor: 'pointer', color: p.starred ? T.accent.warning : T.text.tertiary, fontSize: '12px', transition: T.transition.fast }}
               title={p.starred ? 'Unstar' : 'Star'}
             >
               {p.starred ? '★' : '☆'}
             </span>
-            <span style={{ color: '#999' }}>#</span>
-            <span style={{ flex: 1 }}>{p.name}</span>
-            {p.status === 'completed' && <span style={{ fontSize: '10px', color: '#28a745' }} title="Completed">✓</span>}
-            {p.status === 'archived' && <span style={{ fontSize: '10px', color: '#6c757d' }} title="Archived">⊘</span>}
+            <span style={{ color: T.accent.primary, fontWeight: 500 }}>#</span>
+            <span style={{ flex: 1, color: T.text.primary }}>{p.name}</span>
+            {p.status === 'completed' && <span style={{ fontSize: '10px', color: T.accent.success }} title="Completed">✓</span>}
+            {p.status === 'archived' && <span style={{ fontSize: '10px', color: T.text.tertiary }} title="Archived">⊘</span>}
           </div>
         ))}
 
@@ -1325,10 +1407,10 @@ function App() {
         <div style={{ ...styles.sidebarSection, marginTop: '20px' }}>
           <span>Direct Messages</span>
           <div style={{ display: 'flex', gap: '4px' }}>
-            <button onClick={() => setShowArchived(!showArchived)} style={{ ...styles.addBtn, fontSize: '11px' }} title={showArchived ? 'Hide archived' : 'Show archived'}>
+            <button onClick={() => setShowArchived(!showArchived)} style={{ ...styles.addBtn, fontSize: '11px' }} title={showArchived ? 'Hide archived' : 'Show archived'} onMouseOver={e => e.target.style.color = T.accent.primary} onMouseOut={e => e.target.style.color = T.text.tertiary}>
               {showArchived ? '◉' : '○'}
             </button>
-            <button onClick={() => { setShowEmployeeModal(true); setEditingEmployee(null); setEmployeeForm({ name: '', role: '', instructions: '', model: 'gpt-4' }) }} style={styles.addBtn}>+</button>
+            <button onClick={() => { setShowEmployeeModal(true); setEditingEmployee(null); setEmployeeForm({ name: '', role: '', instructions: '', model: 'gpt-4' }) }} style={styles.addBtn} onMouseOver={e => e.target.style.color = T.accent.primary} onMouseOut={e => e.target.style.color = T.text.tertiary}>+</button>
           </div>
         </div>
         {employees
@@ -1341,47 +1423,49 @@ function App() {
             onContextMenu={(ev) => { ev.preventDefault(); if (!e.is_default && confirm('Delete employee?')) handleDeleteEmployee(e.id) }}
             style={{ ...styles.channel, ...(activeChannel?.type === 'dm' && activeChannel?.id === e.id ? styles.channelActive : {}), flexDirection: 'column', alignItems: 'flex-start', gap: '2px', opacity: e.archived ? 0.5 : 1 }}
             className="sidebar-channel"
+            onMouseEnter={ev => { if (!(activeChannel?.type === 'dm' && activeChannel?.id === e.id)) ev.currentTarget.style.background = T.bg.hover }}
+            onMouseLeave={ev => { if (!(activeChannel?.type === 'dm' && activeChannel?.id === e.id)) ev.currentTarget.style.background = 'transparent' }}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%' }}>
               <span
                 onClick={(ev) => handleToggleEmployeeStar(e.id, ev)}
-                style={{ cursor: 'pointer', color: e.starred ? '#ffc107' : '#555', fontSize: '12px' }}
+                style={{ cursor: 'pointer', color: e.starred ? T.accent.warning : T.text.tertiary, fontSize: '12px', transition: T.transition.fast }}
                 title={e.starred ? 'Unstar' : 'Star'}
               >
                 {e.starred ? '★' : '☆'}
               </span>
-              <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: e.archived ? '#6c757d' : '#2bac76', flexShrink: 0 }}></span>
-              <span style={{ fontWeight: 500, flex: 1 }}>{e.name}</span>
-              {e.archived && <span style={{ fontSize: '10px', color: '#6c757d' }} title="Archived">⊘</span>}
+              <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: e.archived ? T.text.tertiary : T.accent.success, flexShrink: 0 }}></span>
+              <span style={{ fontWeight: 500, flex: 1, color: T.text.primary }}>{e.name}</span>
+              {e.archived && <span style={{ fontSize: '10px', color: T.text.tertiary }} title="Archived">⊘</span>}
               <span
                 onClick={(ev) => handleToggleArchiveEmployee(e.id, ev)}
-                style={{ cursor: 'pointer', color: '#555', fontSize: '11px', opacity: 0.6 }}
+                style={{ cursor: 'pointer', color: T.text.tertiary, fontSize: '11px', opacity: 0.6, transition: T.transition.fast }}
                 title={e.archived ? 'Unarchive' : 'Archive'}
-                onMouseEnter={(ev) => ev.currentTarget.style.opacity = 1}
-                onMouseLeave={(ev) => ev.currentTarget.style.opacity = 0.6}
+                onMouseEnter={(ev) => { ev.currentTarget.style.opacity = '1'; ev.currentTarget.style.color = T.accent.primary }}
+                onMouseLeave={(ev) => { ev.currentTarget.style.opacity = '0.6'; ev.currentTarget.style.color = T.text.tertiary }}
               >
                 {e.archived ? '↩' : '⊘'}
               </span>
             </div>
-            {e.role && <div style={{ color: '#999', fontSize: '11px', paddingLeft: '30px' }}>{e.role}</div>}
+            {e.role && <div style={{ color: T.text.tertiary, fontSize: '11px', paddingLeft: '30px' }}>{e.role}</div>}
           </div>
         ))}
 
         {/* Footer */}
-        <div style={{ marginTop: 'auto', padding: '15px', borderTop: '1px solid #333' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
-            <span style={{ width: '32px', height: '32px', borderRadius: '4px', background: '#4285f4', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: '14px' }}>
+        <div style={{ marginTop: 'auto', padding: '15px', borderTop: `1px solid ${T.border.primary}` }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
+            <span style={{ width: '36px', height: '36px', borderRadius: T.radius.md, background: `linear-gradient(135deg, ${T.accent.primary}, ${T.accent.primaryHover})`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: '14px', fontWeight: 600 }}>
               {user.name?.[0] || 'U'}
             </span>
             <div style={{ flex: 1, overflow: 'hidden' }}>
-              <div style={{ fontSize: '14px', fontWeight: 'bold', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{user.name}</div>
+              <div style={{ fontSize: '14px', fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: T.text.primary }}>{user.name}</div>
             </div>
           </div>
           <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-            <button onClick={() => { setShowSettings(true); setActiveChannel(null) }} style={{ ...styles.btn, flex: 1, background: '#333', color: '#fff', marginRight: 0, fontSize: '12px' }}>Settings</button>
-            <button onClick={() => { fetchRoleLibrary(); setShowRoleLibrary(true) }} style={{ ...styles.btn, flex: 1, background: '#6f42c1', color: '#fff', marginRight: 0, fontSize: '12px' }}>Roles</button>
-            <button onClick={() => { fetchUsageStats(); setShowUsageModal(true) }} style={{ ...styles.btn, flex: 1, background: '#17a2b8', color: '#fff', marginRight: 0, fontSize: '12px' }}>Usage</button>
-            <button onClick={handleLogout} style={{ ...styles.btn, flex: 1, background: '#dc3545', color: '#fff', marginRight: 0, fontSize: '12px' }}>Logout</button>
+            <button onClick={() => { setShowSettings(true); setActiveChannel(null) }} style={{ ...styles.btn, flex: 1, background: T.bg.tertiary, color: T.text.primary, marginRight: 0, fontSize: '12px', border: `1px solid ${T.border.primary}` }} onMouseOver={e => e.target.style.background = T.bg.hover} onMouseOut={e => e.target.style.background = T.bg.tertiary}>Settings</button>
+            <button onClick={() => { fetchRoleLibrary(); setShowRoleLibrary(true) }} style={{ ...styles.btn, flex: 1, background: T.accent.primaryMuted, color: T.accent.primary, marginRight: 0, fontSize: '12px', border: `1px solid ${T.accent.primary}40` }} onMouseOver={e => e.target.style.background = T.accent.primary} onMouseOut={e => e.target.style.background = T.accent.primaryMuted}>Roles</button>
+            <button onClick={() => { fetchUsageStats(); setShowUsageModal(true) }} style={{ ...styles.btn, flex: 1, background: T.accent.infoMuted, color: T.accent.info, marginRight: 0, fontSize: '12px', border: `1px solid ${T.accent.info}40` }} onMouseOver={e => e.target.style.background = T.accent.info} onMouseOut={e => e.target.style.background = T.accent.infoMuted}>Usage</button>
+            <button onClick={handleLogout} style={{ ...styles.btn, flex: 1, background: T.accent.dangerMuted, color: T.accent.danger, marginRight: 0, fontSize: '12px', border: `1px solid ${T.accent.danger}40` }} onMouseOver={e => e.target.style.background = T.accent.danger} onMouseOut={e => e.target.style.background = T.accent.dangerMuted}>Logout</button>
           </div>
         </div>
       </div>
@@ -1391,46 +1475,46 @@ function App() {
         {showSettings ? (
           <div style={{ flex: 1, overflow: 'auto', padding: '40px' }}>
             <div style={{ maxWidth: '700px', margin: '0 auto' }}>
-              <h1 style={{ color: '#333', marginBottom: '8px' }}>Settings</h1>
-              <p style={{ color: '#666', marginBottom: '40px' }}>Configure your AI team's capabilities.</p>
+              <h1 style={{ color: T.text.primary, marginBottom: '8px', fontSize: '28px', fontWeight: 600, letterSpacing: '-0.5px' }}>Settings</h1>
+              <p style={{ color: T.text.secondary, marginBottom: '40px' }}>Configure your AI team's capabilities.</p>
 
               {/* API Keys Section */}
               <div style={{ marginBottom: '50px' }}>
-                <h2 style={{ color: '#333', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <h2 style={{ color: T.text.primary, marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '20px', fontWeight: 600 }}>
                   API Keys
                   {(apiKeys.has_openai_key || apiKeys.has_anthropic_key) && (
-                    <span style={{ fontSize: '12px', padding: '4px 10px', background: '#d4edda', color: '#155724', borderRadius: '12px' }}>
+                    <span style={{ fontSize: '12px', padding: '4px 10px', background: T.accent.successMuted, color: T.accent.success, borderRadius: '12px' }}>
                       {apiKeys.has_openai_key && apiKeys.has_anthropic_key ? '2 configured' : '1 configured'}
                     </span>
                   )}
                 </h2>
-                <p style={{ color: '#666', fontSize: '14px', marginBottom: '24px', lineHeight: 1.6 }}>
+                <p style={{ color: T.text.secondary, fontSize: '14px', marginBottom: '24px', lineHeight: 1.6 }}>
                   Your API keys are encrypted and stored securely. You only need to add keys for the AI models you want to use.
                 </p>
 
                 {/* OpenAI Card */}
-                <div style={{ background: '#fff', border: '1px solid #e0e0e0', borderRadius: '12px', padding: '24px', marginBottom: '16px' }}>
+                <div style={{ background: T.bg.secondary, border: `1px solid ${T.border.primary}`, borderRadius: T.radius.lg, padding: '24px', marginBottom: '16px' }}>
                   <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '16px' }}>
                     <div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '4px' }}>
-                        <h3 style={{ margin: 0, color: '#333' }}>OpenAI</h3>
+                        <h3 style={{ margin: 0, color: T.text.primary, fontSize: '16px', fontWeight: 600 }}>OpenAI</h3>
                         {apiKeys.has_openai_key && (
-                          <span style={{ fontSize: '11px', padding: '2px 8px', background: '#d4edda', color: '#155724', borderRadius: '10px' }}>Connected</span>
+                          <span style={{ fontSize: '11px', padding: '2px 8px', background: T.accent.successMuted, color: T.accent.success, borderRadius: '10px' }}>Connected</span>
                         )}
                       </div>
-                      <p style={{ margin: 0, color: '#666', fontSize: '13px' }}>Powers GPT-4, GPT-4 Turbo, and GPT-3.5 models</p>
+                      <p style={{ margin: 0, color: T.text.secondary, fontSize: '13px' }}>Powers GPT-4, GPT-4 Turbo, and GPT-3.5 models</p>
                     </div>
-                    <div style={{ width: '40px', height: '40px', background: '#000', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      <span style={{ color: '#fff', fontSize: '18px', fontWeight: 'bold' }}>AI</span>
+                    <div style={{ width: '40px', height: '40px', background: PROVIDER_COLORS.openai.bg, borderRadius: T.radius.md, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <span style={{ color: PROVIDER_COLORS.openai.text, fontSize: '16px', fontWeight: 'bold' }}>AI</span>
                     </div>
                   </div>
 
                   {apiKeys.has_openai_key ? (
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                      <div style={{ flex: 1, padding: '10px 14px', background: '#f8f9fa', borderRadius: '6px', color: '#666', fontSize: '14px' }}>
+                      <div style={{ flex: 1, padding: '10px 14px', background: T.bg.tertiary, borderRadius: T.radius.md, color: T.text.secondary, fontSize: '14px' }}>
                         sk-...hidden
                       </div>
-                      <button onClick={() => removeApiKey('openai')} style={{ padding: '10px 16px', background: '#fff', border: '1px solid #dc3545', color: '#dc3545', borderRadius: '6px', cursor: 'pointer', fontSize: '14px' }}>
+                      <button onClick={() => removeApiKey('openai')} style={{ padding: '10px 16px', background: T.accent.dangerMuted, border: `1px solid ${T.accent.danger}40`, color: T.accent.danger, borderRadius: T.radius.md, cursor: 'pointer', fontSize: '14px', transition: T.transition.fast }} onMouseOver={e => e.target.style.background = T.accent.danger} onMouseOut={e => e.target.style.background = T.accent.dangerMuted}>
                         Remove
                       </button>
                     </div>
@@ -1441,17 +1525,19 @@ function App() {
                         placeholder="sk-proj-..."
                         value={keyInputs.openai}
                         onChange={(e) => setKeyInputs({ ...keyInputs, openai: e.target.value })}
-                        style={{ width: '100%', padding: '12px 14px', border: '1px solid #ddd', borderRadius: '6px', fontSize: '14px', boxSizing: 'border-box', marginBottom: '12px' }}
+                        style={{ width: '100%', padding: '12px 14px', border: `1px solid ${T.border.primary}`, borderRadius: T.radius.md, fontSize: '14px', boxSizing: 'border-box', marginBottom: '12px', background: T.bg.tertiary, color: T.text.primary, outline: 'none' }}
+                        onFocus={e => e.target.style.borderColor = T.accent.primary}
+                        onBlur={e => e.target.style.borderColor = T.border.primary}
                       />
-                      <div style={{ background: '#f8f9fa', borderRadius: '8px', padding: '14px', fontSize: '13px', color: '#555', lineHeight: 1.6 }}>
-                        <strong style={{ color: '#333' }}>How to get your OpenAI API key:</strong>
+                      <div style={{ background: T.bg.tertiary, borderRadius: T.radius.md, padding: '14px', fontSize: '13px', color: T.text.secondary, lineHeight: 1.6 }}>
+                        <strong style={{ color: T.text.primary }}>How to get your OpenAI API key:</strong>
                         <ol style={{ margin: '8px 0 0 0', paddingLeft: '20px' }}>
-                          <li>Go to <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer" style={{ color: '#007bff' }}>platform.openai.com/api-keys</a></li>
+                          <li>Go to <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer" style={{ color: T.accent.primary }}>platform.openai.com/api-keys</a></li>
                           <li>Sign in or create an OpenAI account</li>
                           <li>Click "Create new secret key"</li>
-                          <li>Copy the key (starts with <code style={{ background: '#e9ecef', padding: '2px 6px', borderRadius: '3px' }}>sk-proj-</code>)</li>
+                          <li>Copy the key (starts with <code style={{ background: T.bg.hover, padding: '2px 6px', borderRadius: '3px', color: T.accent.primaryHover }}>sk-proj-</code>)</li>
                         </ol>
-                        <p style={{ margin: '10px 0 0 0', color: '#888', fontSize: '12px' }}>
+                        <p style={{ margin: '10px 0 0 0', color: T.text.tertiary, fontSize: '12px' }}>
                           Note: OpenAI charges based on usage. New accounts get free credits to start.
                         </p>
                       </div>
@@ -1460,28 +1546,28 @@ function App() {
                 </div>
 
                 {/* Anthropic Card */}
-                <div style={{ background: '#fff', border: '1px solid #e0e0e0', borderRadius: '12px', padding: '24px', marginBottom: '16px' }}>
+                <div style={{ background: T.bg.secondary, border: `1px solid ${T.border.primary}`, borderRadius: T.radius.lg, padding: '24px', marginBottom: '16px' }}>
                   <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '16px' }}>
                     <div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '4px' }}>
-                        <h3 style={{ margin: 0, color: '#333' }}>Anthropic</h3>
+                        <h3 style={{ margin: 0, color: T.text.primary, fontSize: '16px', fontWeight: 600 }}>Anthropic</h3>
                         {apiKeys.has_anthropic_key && (
-                          <span style={{ fontSize: '11px', padding: '2px 8px', background: '#d4edda', color: '#155724', borderRadius: '10px' }}>Connected</span>
+                          <span style={{ fontSize: '11px', padding: '2px 8px', background: T.accent.successMuted, color: T.accent.success, borderRadius: '10px' }}>Connected</span>
                         )}
                       </div>
-                      <p style={{ margin: 0, color: '#666', fontSize: '13px' }}>Powers Claude 3 Opus and Claude 3 Sonnet models</p>
+                      <p style={{ margin: 0, color: T.text.secondary, fontSize: '13px' }}>Powers Claude 3 Opus and Claude 3 Sonnet models</p>
                     </div>
-                    <div style={{ width: '40px', height: '40px', background: '#d97706', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      <span style={{ color: '#fff', fontSize: '18px', fontWeight: 'bold' }}>A</span>
+                    <div style={{ width: '40px', height: '40px', background: PROVIDER_COLORS.anthropic.bg, borderRadius: T.radius.md, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <span style={{ color: PROVIDER_COLORS.anthropic.text, fontSize: '16px', fontWeight: 'bold' }}>A</span>
                     </div>
                   </div>
 
                   {apiKeys.has_anthropic_key ? (
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                      <div style={{ flex: 1, padding: '10px 14px', background: '#f8f9fa', borderRadius: '6px', color: '#666', fontSize: '14px' }}>
+                      <div style={{ flex: 1, padding: '10px 14px', background: T.bg.tertiary, borderRadius: T.radius.md, color: T.text.secondary, fontSize: '14px' }}>
                         sk-ant-...hidden
                       </div>
-                      <button onClick={() => removeApiKey('anthropic')} style={{ padding: '10px 16px', background: '#fff', border: '1px solid #dc3545', color: '#dc3545', borderRadius: '6px', cursor: 'pointer', fontSize: '14px' }}>
+                      <button onClick={() => removeApiKey('anthropic')} style={{ padding: '10px 16px', background: T.accent.dangerMuted, border: `1px solid ${T.accent.danger}40`, color: T.accent.danger, borderRadius: T.radius.md, cursor: 'pointer', fontSize: '14px', transition: T.transition.fast }} onMouseOver={e => e.target.style.background = T.accent.danger} onMouseOut={e => e.target.style.background = T.accent.dangerMuted}>
                         Remove
                       </button>
                     </div>
@@ -1492,17 +1578,19 @@ function App() {
                         placeholder="sk-ant-api03-..."
                         value={keyInputs.anthropic}
                         onChange={(e) => setKeyInputs({ ...keyInputs, anthropic: e.target.value })}
-                        style={{ width: '100%', padding: '12px 14px', border: '1px solid #ddd', borderRadius: '6px', fontSize: '14px', boxSizing: 'border-box', marginBottom: '12px' }}
+                        style={{ width: '100%', padding: '12px 14px', border: `1px solid ${T.border.primary}`, borderRadius: T.radius.md, fontSize: '14px', boxSizing: 'border-box', marginBottom: '12px', background: T.bg.tertiary, color: T.text.primary, outline: 'none' }}
+                        onFocus={e => e.target.style.borderColor = T.accent.primary}
+                        onBlur={e => e.target.style.borderColor = T.border.primary}
                       />
-                      <div style={{ background: '#f8f9fa', borderRadius: '8px', padding: '14px', fontSize: '13px', color: '#555', lineHeight: 1.6 }}>
-                        <strong style={{ color: '#333' }}>How to get your Anthropic API key:</strong>
+                      <div style={{ background: T.bg.tertiary, borderRadius: T.radius.md, padding: '14px', fontSize: '13px', color: T.text.secondary, lineHeight: 1.6 }}>
+                        <strong style={{ color: T.text.primary }}>How to get your Anthropic API key:</strong>
                         <ol style={{ margin: '8px 0 0 0', paddingLeft: '20px' }}>
-                          <li>Go to <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener noreferrer" style={{ color: '#007bff' }}>console.anthropic.com/settings/keys</a></li>
+                          <li>Go to <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener noreferrer" style={{ color: T.accent.primary }}>console.anthropic.com/settings/keys</a></li>
                           <li>Sign in or create an Anthropic account</li>
                           <li>Click "Create Key"</li>
-                          <li>Copy the key (starts with <code style={{ background: '#e9ecef', padding: '2px 6px', borderRadius: '3px' }}>sk-ant-</code>)</li>
+                          <li>Copy the key (starts with <code style={{ background: T.bg.hover, padding: '2px 6px', borderRadius: '3px', color: T.accent.primaryHover }}>sk-ant-</code>)</li>
                         </ol>
-                        <p style={{ margin: '10px 0 0 0', color: '#888', fontSize: '12px' }}>
+                        <p style={{ margin: '10px 0 0 0', color: T.text.tertiary, fontSize: '12px' }}>
                           Note: Anthropic requires adding credits before use. Claude models are known for strong reasoning.
                         </p>
                       </div>
@@ -1615,7 +1703,7 @@ function App() {
                     <button
                       type="submit"
                       disabled={savingMemory || !newMemory.content.trim()}
-                      style={{ padding: '8px 16px', background: '#007bff', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '14px', opacity: (savingMemory || !newMemory.content.trim()) ? 0.6 : 1 }}
+                      style={{ padding: '10px 18px', background: T.accent.primary, color: '#fff', border: 'none', borderRadius: T.radius.md, cursor: 'pointer', fontSize: '14px', fontWeight: 500, opacity: (savingMemory || !newMemory.content.trim()) ? 0.6 : 1, transition: T.transition.fast }}
                     >
                       {savingMemory ? 'Saving...' : 'Add Memory'}
                     </button>
@@ -1713,37 +1801,37 @@ function App() {
                 {messages.length > 0 && (() => {
                   const contextMessages = freshContextFrom !== null ? messages.slice(freshContextFrom) : messages
                   const totalTokens = contextMessages.reduce((sum, m) => sum + estimateTokens(m.content), 0)
-                  const tokenColor = totalTokens > 100000 ? '#dc3545' : totalTokens > 50000 ? '#ffc107' : '#28a745'
+                  const tokenColor = totalTokens > 100000 ? T.accent.danger : totalTokens > 50000 ? T.accent.warning : T.accent.success
                   return (
-                    <span style={{ fontSize: '11px', padding: '4px 8px', background: '#f8f9fa', color: '#666', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '4px' }} title="Estimated tokens in context">
+                    <span style={{ fontSize: '11px', padding: '4px 8px', background: T.bg.tertiary, color: T.text.secondary, borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '4px' }} title="Estimated tokens in context">
                       <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: tokenColor }}></span>
                       ~{totalTokens.toLocaleString()} tokens
                     </span>
                   )
                 })()}
                 {freshContextFrom !== null && (
-                  <span style={{ fontSize: '12px', padding: '4px 10px', background: '#fff3cd', color: '#856404', borderRadius: '12px' }}>
+                  <span style={{ fontSize: '12px', padding: '4px 10px', background: T.accent.warningMuted, color: T.accent.warning, borderRadius: '12px' }}>
                     Fresh context active
                   </span>
                 )}
                 {messages.length > 0 && (
                   <>
-                    <button onClick={handleExportMarkdown} style={{ ...styles.btn, background: '#6f42c1', color: '#fff' }} title="Export conversation as Markdown">
+                    <button onClick={handleExportMarkdown} style={{ ...styles.btn, background: T.accent.primaryMuted, color: T.accent.primary, border: `1px solid ${T.accent.primary}40` }} title="Export conversation as Markdown">
                       MD
                     </button>
-                    <button onClick={handleExportPDF} style={{ ...styles.btn, background: '#e53935', color: '#fff' }} title="Export conversation as PDF">
+                    <button onClick={handleExportPDF} style={{ ...styles.btn, background: T.accent.dangerMuted, color: T.accent.danger, border: `1px solid ${T.accent.danger}40` }} title="Export conversation as PDF">
                       PDF
                     </button>
                     {freshContextFrom === null ? (
-                      <button onClick={handleStartFresh} style={{ ...styles.btn, background: '#17a2b8', color: '#fff' }} title="Clear AI context without deleting messages">
+                      <button onClick={handleStartFresh} style={{ ...styles.btn, background: T.accent.infoMuted, color: T.accent.info, border: `1px solid ${T.accent.info}40` }} title="Clear AI context without deleting messages">
                         Start Fresh
                       </button>
                     ) : (
-                      <button onClick={handleResumeContext} style={{ ...styles.btn, background: '#28a745', color: '#fff' }} title="Restore full conversation context">
+                      <button onClick={handleResumeContext} style={{ ...styles.btn, background: T.accent.successMuted, color: T.accent.success, border: `1px solid ${T.accent.success}40` }} title="Restore full conversation context">
                         Resume Full
                       </button>
                     )}
-                    <button onClick={handleClearChat} style={{ ...styles.btn, background: '#dc3545', color: '#fff' }}>
+                    <button onClick={handleClearChat} style={{ ...styles.btn, background: T.accent.dangerMuted, color: T.accent.danger, border: `1px solid ${T.accent.danger}40` }}>
                       Clear
                     </button>
                   </>
@@ -1751,7 +1839,7 @@ function App() {
                 {activeChannel.type === 'dm' && (
                   <button
                     onClick={() => { setEditingEmployee(employees.find(e => e.id === activeChannel.id)); setEmployeeForm(employees.find(e => e.id === activeChannel.id) || {}); setShowEmployeeModal(true) }}
-                    style={{ ...styles.btn, background: '#6c757d', color: '#fff' }}
+                    style={{ ...styles.btn, background: T.bg.tertiary, color: T.text.primary, border: `1px solid ${T.border.primary}` }}
                   >
                     Edit Employee
                   </button>
@@ -1759,7 +1847,7 @@ function App() {
                 {activeChannel.type === 'project' && (
                   <button
                     onClick={() => { setEditingProject(projects.find(p => p.id === activeChannel.id)); setProjectForm(projects.find(p => p.id === activeChannel.id) || {}); setShowProjectModal(true) }}
-                    style={{ ...styles.btn, background: '#6c757d', color: '#fff' }}
+                    style={{ ...styles.btn, background: T.bg.tertiary, color: T.text.primary, border: `1px solid ${T.border.primary}` }}
                   >
                     Edit Project
                   </button>
@@ -1769,11 +1857,11 @@ function App() {
 
             <div style={styles.messages}>
               {/* Tags row */}
-              <div style={{ marginBottom: '10px', display: 'flex', flexWrap: 'wrap', gap: '6px', alignItems: 'center' }}>
+              <div style={{ marginBottom: '12px', display: 'flex', flexWrap: 'wrap', gap: '6px', alignItems: 'center' }}>
                 {conversationTags.map(tag => (
-                  <span key={tag} style={{ fontSize: '11px', padding: '3px 8px', background: '#e3f2fd', color: '#1565c0', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <span key={tag} style={{ fontSize: '11px', padding: '4px 10px', background: T.accent.primaryMuted, color: T.accent.primary, borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
                     {tag}
-                    <button onClick={() => handleRemoveTag(tag)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#1565c0', padding: 0, fontSize: '12px' }}>×</button>
+                    <button onClick={() => handleRemoveTag(tag)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: T.accent.primary, padding: 0, fontSize: '12px', opacity: 0.7, transition: T.transition.fast }} onMouseOver={e => e.target.style.opacity = 1} onMouseOut={e => e.target.style.opacity = 0.7}>×</button>
                   </span>
                 ))}
                 <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
@@ -1783,26 +1871,28 @@ function App() {
                     onChange={(e) => setNewTag(e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && handleAddTag()}
                     placeholder="Add tag..."
-                    style={{ padding: '3px 8px', fontSize: '11px', border: '1px solid #ddd', borderRadius: '12px', width: '80px' }}
+                    style={{ padding: '4px 10px', fontSize: '11px', border: `1px solid ${T.border.primary}`, borderRadius: '12px', width: '80px', background: T.bg.tertiary, color: T.text.primary, outline: 'none' }}
+                    onFocus={e => e.target.style.borderColor = T.accent.primary}
+                    onBlur={e => e.target.style.borderColor = T.border.primary}
                   />
-                  {newTag && <button onClick={handleAddTag} style={{ background: '#1565c0', color: '#fff', border: 'none', borderRadius: '12px', padding: '3px 8px', fontSize: '11px', cursor: 'pointer' }}>+</button>}
+                  {newTag && <button onClick={handleAddTag} style={{ background: T.accent.primary, color: '#fff', border: 'none', borderRadius: '12px', padding: '4px 10px', fontSize: '11px', cursor: 'pointer', transition: T.transition.fast }}>+</button>}
                 </div>
               </div>
 
               {/* Project employees (for project channels) */}
               {activeChannel.type === 'project' && (
-                <div style={{ marginBottom: '10px', padding: '8px 12px', background: '#f8f9fa', borderRadius: '6px', fontSize: '12px' }}>
+                <div style={{ marginBottom: '12px', padding: '10px 14px', background: T.bg.secondary, borderRadius: T.radius.md, fontSize: '12px', border: `1px solid ${T.border.subtle}` }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                    <span style={{ fontWeight: 500, color: '#666' }}>Team:</span>
+                    <span style={{ fontWeight: 500, color: T.text.secondary }}>Team:</span>
                     {projectEmployees.map(pe => (
-                      <span key={pe.id} style={{ padding: '2px 8px', background: '#fff', borderRadius: '12px', border: '1px solid #ddd', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <span key={pe.id} style={{ padding: '3px 10px', background: T.bg.tertiary, borderRadius: '12px', border: `1px solid ${T.border.primary}`, display: 'flex', alignItems: 'center', gap: '6px', color: T.text.primary }}>
                         {pe.name}
-                        <button onClick={() => handleUnassignEmployee(pe.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#999', padding: 0, fontSize: '12px' }}>×</button>
+                        <button onClick={() => handleUnassignEmployee(pe.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: T.text.tertiary, padding: 0, fontSize: '12px', transition: T.transition.fast }} onMouseOver={e => e.target.style.color = T.accent.danger} onMouseOut={e => e.target.style.color = T.text.tertiary}>×</button>
                       </span>
                     ))}
                     <select
                       onChange={(e) => { if (e.target.value) { handleAssignEmployee(e.target.value); e.target.value = '' } }}
-                      style={{ padding: '2px 6px', fontSize: '11px', border: '1px solid #ddd', borderRadius: '6px', background: '#fff' }}
+                      style={{ padding: '3px 8px', fontSize: '11px', border: `1px solid ${T.border.primary}`, borderRadius: T.radius.sm, background: T.bg.tertiary, color: T.text.primary }}
                       defaultValue=""
                     >
                       <option value="">+ Add</option>
@@ -1816,56 +1906,56 @@ function App() {
 
               {/* Pinned messages banner */}
               {pinnedMessages.length > 0 && (
-                <div style={{ marginBottom: '15px', padding: '10px 15px', background: '#fff3cd', borderRadius: '8px', border: '1px solid #ffc107' }}>
-                  <div style={{ fontSize: '12px', fontWeight: 'bold', color: '#856404', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <div style={{ marginBottom: '16px', padding: '12px 16px', background: T.accent.warningMuted, borderRadius: T.radius.md, border: `1px solid ${T.accent.warning}40` }}>
+                  <div style={{ fontSize: '12px', fontWeight: 600, color: T.accent.warning, marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
                     📌 {pinnedMessages.length} Pinned Message{pinnedMessages.length > 1 ? 's' : ''}
                   </div>
                   {pinnedMessages.slice(0, 3).map(pm => (
-                    <div key={pm.id} style={{ fontSize: '13px', color: '#856404', padding: '4px 0', borderTop: '1px solid rgba(0,0,0,0.1)' }}>
-                      <span style={{ fontWeight: 500 }}>{pm.role === 'user' ? user.name : getEmployeeName(pm.employee_id)}: </span>
+                    <div key={pm.id} style={{ fontSize: '13px', color: T.text.secondary, padding: '4px 0', borderTop: `1px solid ${T.border.subtle}` }}>
+                      <span style={{ fontWeight: 500, color: T.text.primary }}>{pm.role === 'user' ? user.name : getEmployeeName(pm.employee_id)}: </span>
                       {pm.content.length > 100 ? pm.content.slice(0, 100) + '...' : pm.content}
                     </div>
                   ))}
                   {pinnedMessages.length > 3 && (
-                    <div style={{ fontSize: '11px', color: '#856404', opacity: 0.7, marginTop: '4px' }}>
+                    <div style={{ fontSize: '11px', color: T.text.tertiary, marginTop: '4px' }}>
                       +{pinnedMessages.length - 3} more pinned
                     </div>
                   )}
                 </div>
               )}
               {messages.length === 0 && (
-                <div style={{ textAlign: 'center', color: '#999', marginTop: '50px' }}>
-                  <p>No messages yet. Start the conversation!</p>
+                <div style={{ textAlign: 'center', color: T.text.tertiary, marginTop: '60px' }}>
+                  <p style={{ fontSize: '15px' }}>No messages yet. Start the conversation!</p>
                 </div>
               )}
               {messages.map((msg, i) => (
-                <div key={msg.id || i} style={{ marginBottom: '15px', display: 'flex', gap: '10px', position: 'relative' }} className="message-container">
-                  <div style={{ width: '36px', height: '36px', borderRadius: '4px', background: msg.role === 'user' ? '#4285f4' : '#2bac76', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: '14px', flexShrink: 0 }}>
+                <div key={msg.id || i} style={{ marginBottom: '20px', display: 'flex', gap: '12px', position: 'relative' }} className="message-container">
+                  <div style={{ width: '38px', height: '38px', borderRadius: T.radius.md, background: msg.role === 'user' ? `linear-gradient(135deg, ${T.accent.primary}, ${T.accent.primaryHover})` : `linear-gradient(135deg, ${T.accent.success}, #34d399)`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: '14px', flexShrink: 0, fontWeight: 600 }}>
                     {msg.role === 'user' ? (user.name?.[0] || 'U') : (msg.employee_id ? getEmployeeName(msg.employee_id)?.[0] : 'A')}
                   </div>
                   <div style={{ flex: 1 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px', flexWrap: 'wrap' }}>
-                      <span style={{ fontWeight: 'bold' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px', flexWrap: 'wrap' }}>
+                      <span style={{ fontWeight: 600, color: T.text.primary }}>
                         {msg.role === 'user' ? user.name : (msg.employee_id ? getEmployeeName(msg.employee_id) : 'Assistant')}
                       </span>
                       {msg.created_at && (
-                        <span style={{ fontSize: '11px', color: '#999' }}>
+                        <span style={{ fontSize: '11px', color: T.text.tertiary }}>
                           {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                         </span>
                       )}
                       <button
                         onClick={() => copyToClipboard(msg.content)}
-                        style={{ background: 'none', border: 'none', color: '#999', cursor: 'pointer', padding: '2px 6px', fontSize: '12px', opacity: 0.6 }}
+                        style={{ background: 'none', border: 'none', color: T.text.tertiary, cursor: 'pointer', padding: '2px 6px', fontSize: '12px', opacity: 0.6, transition: T.transition.fast }}
                         title="Copy message"
-                        onMouseEnter={(e) => e.target.style.opacity = 1}
-                        onMouseLeave={(e) => e.target.style.opacity = 0.6}
+                        onMouseEnter={(e) => { e.target.style.opacity = 1; e.target.style.color = T.accent.primary }}
+                        onMouseLeave={(e) => { e.target.style.opacity = 0.6; e.target.style.color = T.text.tertiary }}
                       >
                         Copy
                       </button>
                       {msg.id && !isStreaming && (
                         <button
                           onClick={() => handleTogglePin(msg.id)}
-                          style={{ background: 'none', border: 'none', color: msg.pinned ? '#ffc107' : '#999', cursor: 'pointer', padding: '2px 6px', fontSize: '12px', opacity: msg.pinned ? 1 : 0.6 }}
+                          style={{ background: 'none', border: 'none', color: msg.pinned ? T.accent.warning : T.text.tertiary, cursor: 'pointer', padding: '2px 6px', fontSize: '12px', opacity: msg.pinned ? 1 : 0.6, transition: T.transition.fast }}
                           title={msg.pinned ? 'Unpin message' : 'Pin message'}
                           onMouseEnter={(e) => e.target.style.opacity = 1}
                           onMouseLeave={(e) => e.target.style.opacity = msg.pinned ? 1 : 0.6}
@@ -1877,16 +1967,16 @@ function App() {
                         <>
                           <button
                             onClick={() => { setEditingMessage(msg.id); setEditMessageContent(msg.content) }}
-                            style={{ background: 'none', border: 'none', color: '#999', cursor: 'pointer', padding: '2px 6px', fontSize: '12px', opacity: 0.6 }}
+                            style={{ background: 'none', border: 'none', color: T.text.tertiary, cursor: 'pointer', padding: '2px 6px', fontSize: '12px', opacity: 0.6, transition: T.transition.fast }}
                             title="Edit message"
-                            onMouseEnter={(e) => e.target.style.opacity = 1}
-                            onMouseLeave={(e) => e.target.style.opacity = 0.6}
+                            onMouseEnter={(e) => { e.target.style.opacity = 1; e.target.style.color = T.accent.primary }}
+                            onMouseLeave={(e) => { e.target.style.opacity = 0.6; e.target.style.color = T.text.tertiary }}
                           >
                             Edit
                           </button>
                           <button
                             onClick={() => handleDeleteMessage(msg.id)}
-                            style={{ background: 'none', border: 'none', color: '#dc3545', cursor: 'pointer', padding: '2px 6px', fontSize: '12px', opacity: 0.6 }}
+                            style={{ background: 'none', border: 'none', color: T.accent.danger, cursor: 'pointer', padding: '2px 6px', fontSize: '12px', opacity: 0.6, transition: T.transition.fast }}
                             title="Delete message"
                             onMouseEnter={(e) => e.target.style.opacity = 1}
                             onMouseLeave={(e) => e.target.style.opacity = 0.6}
@@ -1901,16 +1991,16 @@ function App() {
                         <textarea
                           value={editMessageContent}
                           onChange={(e) => setEditMessageContent(e.target.value)}
-                          style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '4px', minHeight: '60px', fontSize: '14px', resize: 'vertical' }}
+                          style={{ width: '100%', padding: '12px', border: `1px solid ${T.border.primary}`, borderRadius: T.radius.md, minHeight: '60px', fontSize: '14px', resize: 'vertical', background: T.bg.tertiary, color: T.text.primary, outline: 'none' }}
                           autoFocus
                         />
                         <div style={{ display: 'flex', gap: '8px' }}>
-                          <button onClick={() => handleEditMessage(msg.id)} style={{ padding: '6px 12px', background: '#007bff', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '13px' }}>Save</button>
-                          <button onClick={() => { setEditingMessage(null); setEditMessageContent('') }} style={{ padding: '6px 12px', background: '#6c757d', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '13px' }}>Cancel</button>
+                          <button onClick={() => handleEditMessage(msg.id)} style={{ padding: '6px 12px', background: T.accent.primary, color: '#fff', border: 'none', borderRadius: T.radius.sm, cursor: 'pointer', fontSize: '13px', fontWeight: 500, transition: T.transition.fast }}>Save</button>
+                          <button onClick={() => { setEditingMessage(null); setEditMessageContent('') }} style={{ padding: '6px 12px', background: T.bg.tertiary, color: T.text.primary, border: `1px solid ${T.border.primary}`, borderRadius: T.radius.sm, cursor: 'pointer', fontSize: '13px' }}>Cancel</button>
                         </div>
                       </div>
                     ) : (
-                      <div style={{ margin: 0, whiteSpace: 'pre-wrap', fontFamily: 'inherit', lineHeight: 1.5 }}>
+                      <div style={{ margin: 0, whiteSpace: 'pre-wrap', fontFamily: 'inherit', lineHeight: 1.6, color: T.text.primary }}>
                         {msg.role === 'assistant' ? renderMarkdown(msg.content) : msg.content}
                       </div>
                     )}
@@ -1978,9 +2068,11 @@ function App() {
                   onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && sendMessage()}
                   placeholder={activeChannel.type === 'project' ? 'Message #' + activeChannel.name + ' (use @name to mention)' : 'Message ' + activeChannel.name}
                   disabled={isStreaming}
-                  style={{ flex: 1, minWidth: '0', padding: '12px', border: '1px solid #ddd', borderRadius: '8px', fontSize: '14px' }}
+                  style={{ flex: 1, minWidth: '0', padding: '14px 16px', border: `1px solid ${T.border.primary}`, borderRadius: T.radius.md, fontSize: '14px', background: T.bg.tertiary, color: T.text.primary, outline: 'none', transition: T.transition.fast }}
+                  onFocus={e => e.target.style.borderColor = T.accent.primary}
+                  onBlur={e => e.target.style.borderColor = T.border.primary}
                 />
-                <button onClick={sendMessage} disabled={isStreaming || !chatInput.trim()} style={{ ...styles.btn, background: '#007bff', color: '#fff', opacity: isStreaming ? 0.6 : 1, flexShrink: 0 }}>
+                <button onClick={sendMessage} disabled={isStreaming || !chatInput.trim()} style={{ ...styles.btn, background: T.accent.primary, color: '#fff', opacity: isStreaming ? 0.6 : 1, flexShrink: 0 }}>
                   {isStreaming ? 'Sending...' : 'Send'}
                 </button>
               </div>
@@ -1989,23 +2081,23 @@ function App() {
         ) : (
           <div style={{ flex: 1, overflow: 'auto', padding: '40px' }}>
             <div style={{ maxWidth: '900px', margin: '0 auto' }}>
-              <h1 style={{ color: '#333', marginBottom: '8px' }}>Welcome to SilentPartner</h1>
-              <p style={{ color: '#666', marginBottom: '40px' }}>Your AI consulting team, configured by you.</p>
+              <h1 style={{ color: T.text.primary, marginBottom: '8px', fontSize: '28px', fontWeight: 600, letterSpacing: '-0.5px' }}>Welcome to SilentPartner</h1>
+              <p style={{ color: T.text.secondary, marginBottom: '40px' }}>Your AI consulting team, configured by you.</p>
 
               {/* Team Section */}
               <div style={{ marginBottom: '40px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                  <h2 style={{ color: '#333', margin: 0 }}>Your Team</h2>
+                  <h2 style={{ color: T.text.primary, margin: 0, fontSize: '20px', fontWeight: 600 }}>Your Team</h2>
                   <button
                     onClick={() => { setShowEmployeeModal(true); setEditingEmployee(null); setEmployeeForm({ name: '', role: '', instructions: '', model: 'gpt-4' }) }}
-                    style={{ padding: '8px 16px', background: '#007bff', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '14px' }}
+                    style={{ padding: '10px 18px', background: T.accent.primary, color: '#fff', border: 'none', borderRadius: T.radius.md, cursor: 'pointer', fontSize: '14px', fontWeight: 500, transition: T.transition.fast }}
                   >
                     + Add Employee
                   </button>
                 </div>
 
                 {employees.length === 0 ? (
-                  <div style={{ padding: '40px', background: '#f8f9fa', borderRadius: '8px', textAlign: 'center', color: '#666' }}>
+                  <div style={{ padding: '40px', background: T.bg.secondary, borderRadius: T.radius.lg, textAlign: 'center', color: T.text.secondary, border: `1px solid ${T.border.primary}` }}>
                     <p style={{ margin: 0 }}>No employees yet. Add your first AI team member to get started.</p>
                   </div>
                 ) : (
@@ -2014,42 +2106,42 @@ function App() {
                       <div
                         key={e.id}
                         style={{
-                          background: '#fff',
-                          border: '1px solid #e0e0e0',
-                          borderRadius: '8px',
+                          background: T.bg.secondary,
+                          border: `1px solid ${T.border.primary}`,
+                          borderRadius: T.radius.lg,
                           padding: '20px',
                           cursor: 'pointer',
                           transition: 'box-shadow 0.2s, border-color 0.2s'
                         }}
                         onClick={() => setActiveChannel({ type: 'dm', id: e.id, name: e.name })}
-                        onMouseEnter={(ev) => { ev.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.1)'; ev.currentTarget.style.borderColor = '#007bff' }}
-                        onMouseLeave={(ev) => { ev.currentTarget.style.boxShadow = 'none'; ev.currentTarget.style.borderColor = '#e0e0e0' }}
+                        onMouseEnter={(ev) => { ev.currentTarget.style.boxShadow = T.shadow.md; ev.currentTarget.style.borderColor = T.accent.primary }}
+                        onMouseLeave={(ev) => { ev.currentTarget.style.boxShadow = 'none'; ev.currentTarget.style.borderColor = T.border.primary }}
                       >
                         <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
                           <div style={{
                             width: '48px',
                             height: '48px',
-                            borderRadius: '8px',
-                            background: '#2bac76',
+                            borderRadius: T.radius.md,
+                            background: `linear-gradient(135deg, ${T.accent.success}, #34d399)`,
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
                             color: '#fff',
                             fontSize: '20px',
-                            fontWeight: 'bold',
+                            fontWeight: 600,
                             flexShrink: 0
                           }}>
                             {e.name[0]?.toUpperCase()}
                           </div>
                           <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ fontWeight: 600, fontSize: '16px', color: '#333', marginBottom: '4px' }}>{e.name}</div>
-                            <div style={{ color: '#666', fontSize: '14px', marginBottom: '8px' }}>{e.role || 'No role assigned'}</div>
+                            <div style={{ fontWeight: 600, fontSize: '16px', color: T.text.primary, marginBottom: '4px' }}>{e.name}</div>
+                            <div style={{ color: T.text.secondary, fontSize: '14px', marginBottom: '8px' }}>{e.role || 'No role assigned'}</div>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                               <span style={{
                                 fontSize: '11px',
-                                padding: '2px 8px',
-                                background: e.model?.startsWith('claude') ? '#f3e5f5' : '#e3f2fd',
-                                color: e.model?.startsWith('claude') ? '#7b1fa2' : '#1565c0',
+                                padding: '3px 10px',
+                                background: e.model?.startsWith('claude') ? PROVIDER_COLORS.anthropic.bg : PROVIDER_COLORS.openai.bg,
+                                color: e.model?.startsWith('claude') ? PROVIDER_COLORS.anthropic.text : PROVIDER_COLORS.openai.text,
                                 borderRadius: '12px'
                               }}>
                                 {e.model || 'gpt-4'}
@@ -2058,14 +2150,16 @@ function App() {
                           </div>
                           <button
                             onClick={(ev) => { ev.stopPropagation(); setEditingEmployee(e); setEmployeeForm(e); setShowEmployeeModal(true) }}
-                            style={{ background: 'none', border: 'none', color: '#999', cursor: 'pointer', padding: '4px', fontSize: '18px' }}
+                            style={{ background: 'none', border: 'none', color: T.text.tertiary, cursor: 'pointer', padding: '4px', fontSize: '18px', transition: T.transition.fast }}
                             title="Edit employee"
+                            onMouseEnter={ev => ev.target.style.color = T.accent.primary}
+                            onMouseLeave={ev => ev.target.style.color = T.text.tertiary}
                           >
                             ✎
                           </button>
                         </div>
                         {e.instructions && (
-                          <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid #f0f0f0', color: '#888', fontSize: '13px', lineHeight: 1.4 }}>
+                          <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: `1px solid ${T.border.subtle}`, color: T.text.tertiary, fontSize: '13px', lineHeight: 1.4 }}>
                             {e.instructions.length > 100 ? e.instructions.slice(0, 100) + '...' : e.instructions}
                           </div>
                         )}
@@ -2123,7 +2217,7 @@ function App() {
                 </select>
               )}
               <div style={{ display: 'flex', gap: '10px' }}>
-                <button type="submit" style={{ ...styles.btn, background: '#007bff', color: '#fff' }}>Save</button>
+                <button type="submit" style={{ ...styles.btn, background: T.accent.primary, color: '#fff' }}>Save</button>
                 <button type="button" onClick={() => setShowProjectModal(false)} style={{ ...styles.btn, background: '#6c757d', color: '#fff' }}>Cancel</button>
               </div>
             </form>
@@ -2173,7 +2267,7 @@ function App() {
                 </optgroup>
               </select>
               <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-                <button type="submit" style={{ ...styles.btn, background: '#007bff', color: '#fff' }}>Save</button>
+                <button type="submit" style={{ ...styles.btn, background: T.accent.primary, color: '#fff' }}>Save</button>
                 <button type="button" onClick={() => setShowEmployeeModal(false)} style={{ ...styles.btn, background: '#6c757d', color: '#fff' }}>Cancel</button>
                 <div style={{ flex: 1 }}></div>
                 {editingEmployee && (
@@ -2213,7 +2307,7 @@ function App() {
               <button
                 onClick={handleFileUpload}
                 disabled={uploading}
-                style={{ ...styles.btn, background: '#007bff', color: '#fff', flex: 1, opacity: uploading ? 0.6 : 1 }}
+                style={{ ...styles.btn, background: T.accent.primary, color: '#fff', flex: 1, opacity: uploading ? 0.6 : 1 }}
               >
                 {uploading ? 'Uploading...' : 'Upload File'}
               </button>
@@ -2310,7 +2404,7 @@ function App() {
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
                       <div>
                         <h4 style={{ margin: 0, color: '#333' }}>{template.name}</h4>
-                        {template.is_default && <span style={{ fontSize: '10px', padding: '2px 6px', background: '#007bff', color: '#fff', borderRadius: '4px', marginLeft: '6px' }}>Default</span>}
+                        {template.is_default && <span style={{ fontSize: '10px', padding: '2px 6px', background: T.accent.primary, color: '#fff', borderRadius: '4px', marginLeft: '6px' }}>Default</span>}
                         {template.is_undeletable && <span style={{ fontSize: '10px', padding: '2px 6px', background: '#6c757d', color: '#fff', borderRadius: '4px', marginLeft: '4px' }}>Required</span>}
                       </div>
                       {template.in_use && (
