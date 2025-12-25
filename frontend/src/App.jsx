@@ -16,7 +16,7 @@ const T = {
   text: {
     primary: '#f0f0f0',      // Main text
     secondary: '#a0a0a8',    // Secondary text
-    tertiary: '#6b6b75',     // Placeholder, disabled
+    tertiary: '#8a8a94',     // Placeholder, disabled (improved contrast)
     inverse: '#0a0a0b',      // Text on light backgrounds
     onAccent: '#ffffff',     // White text on colored buttons
   },
@@ -128,7 +128,7 @@ function Toast({ message, type, onClose }) {
       borderLeft: `4px solid ${accentColor}`,
     }}>
       <span style={{ flex: 1 }}>{message}</span>
-      <button onClick={onClose} style={{ background: 'none', border: 'none', color: T.text.tertiary, cursor: 'pointer', fontSize: '18px', padding: 0, transition: T.transition.fast }} onMouseOver={e => e.target.style.color = T.text.primary} onMouseOut={e => e.target.style.color = T.text.tertiary}>×</button>
+      <button onClick={onClose} style={{ background: 'none', border: 'none', color: T.text.tertiary, cursor: 'pointer', fontSize: '18px', padding: 0, transition: T.transition.fast }} onMouseOver={e => e.target.style.color = T.text.primary} onMouseOut={e => e.target.style.color = T.text.tertiary} aria-label="Dismiss notification">×</button>
     </div>
   )
 }
@@ -137,6 +137,64 @@ function Toast({ message, type, onClose }) {
 function estimateTokens(text) {
   if (!text) return 0
   return Math.ceil(text.length / 4)
+}
+
+// Debounce helper
+function useDebounce(value, delay) {
+  const [debouncedValue, setDebouncedValue] = useState(value)
+  useEffect(() => {
+    const handler = setTimeout(() => setDebouncedValue(value), delay)
+    return () => clearTimeout(handler)
+  }, [value, delay])
+  return debouncedValue
+}
+
+// Focus trap hook for modals
+function useFocusTrap(isOpen, modalRef) {
+  useEffect(() => {
+    if (!isOpen || !modalRef.current) return
+
+    const modal = modalRef.current
+    const focusableElements = modal.querySelectorAll(
+      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+    )
+    const firstElement = focusableElements[0]
+    const lastElement = focusableElements[focusableElements.length - 1]
+
+    // Focus first element when modal opens
+    firstElement?.focus()
+
+    const handleTab = (e) => {
+      if (e.key !== 'Tab') return
+
+      if (e.shiftKey) {
+        if (document.activeElement === firstElement) {
+          e.preventDefault()
+          lastElement?.focus()
+        }
+      } else {
+        if (document.activeElement === lastElement) {
+          e.preventDefault()
+          firstElement?.focus()
+        }
+      }
+    }
+
+    modal.addEventListener('keydown', handleTab)
+    return () => modal.removeEventListener('keydown', handleTab)
+  }, [isOpen, modalRef])
+}
+
+// Escape key handler for modals
+function useEscapeKey(isOpen, onClose) {
+  useEffect(() => {
+    if (!isOpen) return
+    const handleEscape = (e) => {
+      if (e.key === 'Escape') onClose()
+    }
+    document.addEventListener('keydown', handleEscape)
+    return () => document.removeEventListener('keydown', handleEscape)
+  }, [isOpen, onClose])
 }
 
 // Instruction templates for common employee roles
@@ -263,6 +321,13 @@ function App() {
   const [chatError, setChatError] = useState(null)
   const messagesEndRef = useRef(null)
   const fileInputRef = useRef(null)
+
+  // Modal refs for focus trapping
+  const projectModalRef = useRef(null)
+  const employeeModalRef = useRef(null)
+  const usageModalRef = useRef(null)
+  const roleLibraryRef = useRef(null)
+  const confirmDialogRef = useRef(null)
   const [uploadedFiles, setUploadedFiles] = useState([])
   const [uploading, setUploading] = useState(false)
   const [editingMessage, setEditingMessage] = useState(null)
@@ -587,6 +652,19 @@ function App() {
 
   useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages])
 
+  // Modal accessibility: Focus traps and escape key handlers
+  useFocusTrap(showProjectModal, projectModalRef)
+  useFocusTrap(showEmployeeModal, employeeModalRef)
+  useFocusTrap(showUsageModal, usageModalRef)
+  useFocusTrap(showRoleLibrary, roleLibraryRef)
+  useFocusTrap(!!confirmDialog, confirmDialogRef)
+
+  useEscapeKey(showProjectModal, () => setShowProjectModal(false))
+  useEscapeKey(showEmployeeModal, () => setShowEmployeeModal(false))
+  useEscapeKey(showUsageModal, () => setShowUsageModal(false))
+  useEscapeKey(showRoleLibrary, () => setShowRoleLibrary(false))
+  useEscapeKey(!!confirmDialog, () => setConfirmDialog(null))
+
   // Fetch DM files from server
   const fetchDMFiles = async (employeeId) => {
     try {
@@ -861,27 +939,32 @@ function App() {
     showToast('Conversation exported to Markdown', 'success')
   }
 
-  // Search conversations
-  const handleSearchConversations = async (query) => {
-    setConversationSearch(query)
-    if (!query.trim()) {
+  // Search conversations with debounce
+  const debouncedSearch = useDebounce(conversationSearch, 300)
+
+  useEffect(() => {
+    if (!debouncedSearch.trim()) {
       setSearchResults([])
       setShowSearchResults(false)
       return
     }
-    if (query.trim().length < 2) return
-    setSearching(true)
-    setShowSearchResults(true)
-    try {
-      const res = await fetch(`/api/messages/search?q=${encodeURIComponent(query.trim())}`, {
-        headers: API_HEADERS()
-      })
-      if (res.ok) {
-        setSearchResults(await res.json())
-      }
-    } catch (err) { console.error('Search failed:', err) }
-    setSearching(false)
-  }
+    if (debouncedSearch.trim().length < 2) return
+
+    const performSearch = async () => {
+      setSearching(true)
+      setShowSearchResults(true)
+      try {
+        const res = await fetch(`/api/messages/search?q=${encodeURIComponent(debouncedSearch.trim())}`, {
+          headers: API_HEADERS()
+        })
+        if (res.ok) {
+          setSearchResults(await res.json())
+        }
+      } catch (err) { console.error('Search failed:', err) }
+      setSearching(false)
+    }
+    performSearch()
+  }, [debouncedSearch])
 
   // Navigate to search result
   const handleSearchResultClick = (result) => {
@@ -1339,7 +1422,7 @@ function App() {
 
       if (!res.ok) {
         const err = await res.json()
-        setChatError(err.detail || 'Chat failed')
+        setChatError(err.detail || 'Failed to send message. Please try again.')
         setIsStreaming(false)
         return
       }
@@ -1381,7 +1464,7 @@ function App() {
           employee_id: employeeId
         })
       })
-    } catch (err) { setChatError('Connection error') }
+    } catch (err) { setChatError('Unable to connect. Check your internet connection and try again.') }
     setIsStreaming(false)
   }
 
@@ -1466,6 +1549,7 @@ function App() {
           display: 'none'
         }}
         className="sidebar-toggle"
+        aria-label={sidebarOpen ? 'Close sidebar' : 'Open sidebar'}
       >
         {sidebarOpen ? '←' : '☰'}
       </button>
@@ -1486,7 +1570,7 @@ function App() {
               type="text"
               placeholder="Search conversations..."
               value={conversationSearch}
-              onChange={(e) => handleSearchConversations(e.target.value)}
+              onChange={(e) => setConversationSearch(e.target.value)}
               style={{ width: '100%', padding: '10px 12px', border: `1px solid ${T.border.primary}`, borderRadius: T.radius.md, background: T.bg.tertiary, color: T.text.primary, fontSize: '13px', boxSizing: 'border-box', outline: 'none', transition: T.transition.fast }}
               onFocus={e => e.target.style.borderColor = T.accent.primary}
               onBlur={e => e.target.style.borderColor = T.border.primary}
@@ -2010,13 +2094,13 @@ function App() {
               </div>
             </div>
 
-            <div style={styles.messages}>
+            <div style={styles.messages} role="log" aria-live="polite" aria-label="Chat messages">
               {/* Tags row */}
               <div style={{ marginBottom: '12px', display: 'flex', flexWrap: 'wrap', gap: '6px', alignItems: 'center' }}>
                 {conversationTags.map(tag => (
                   <span key={tag} style={{ fontSize: '11px', padding: '4px 10px', background: T.accent.primaryMuted, color: T.accent.primary, borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
                     {tag}
-                    <button onClick={() => handleRemoveTag(tag)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: T.accent.primary, padding: 0, fontSize: '12px', opacity: 0.7, transition: T.transition.fast }} onMouseOver={e => e.target.style.opacity = 1} onMouseOut={e => e.target.style.opacity = 0.7}>×</button>
+                    <button onClick={() => handleRemoveTag(tag)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: T.accent.primary, padding: 0, fontSize: '12px', opacity: 0.7, transition: T.transition.fast }} onMouseOver={e => e.target.style.opacity = 1} onMouseOut={e => e.target.style.opacity = 0.7} aria-label={`Remove tag ${tag}`}>×</button>
                   </span>
                 ))}
                 <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
@@ -2042,7 +2126,7 @@ function App() {
                     {projectEmployees.map(pe => (
                       <span key={pe.id} style={{ padding: '3px 10px', background: T.bg.tertiary, borderRadius: '12px', border: `1px solid ${T.border.primary}`, display: 'flex', alignItems: 'center', gap: '6px', color: T.text.primary }}>
                         {pe.name}
-                        <button onClick={() => handleUnassignEmployee(pe.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: T.text.tertiary, padding: 0, fontSize: '12px', transition: T.transition.fast }} onMouseOver={e => e.target.style.color = T.accent.danger} onMouseOut={e => e.target.style.color = T.text.tertiary}>×</button>
+                        <button onClick={() => handleUnassignEmployee(pe.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: T.text.tertiary, padding: 0, fontSize: '12px', transition: T.transition.fast }} onMouseOver={e => e.target.style.color = T.accent.danger} onMouseOut={e => e.target.style.color = T.text.tertiary} aria-label={`Remove ${pe.name} from project`}>×</button>
                       </span>
                     ))}
                     <select
@@ -2079,8 +2163,12 @@ function App() {
                 </div>
               )}
               {messages.length === 0 && (
-                <div style={{ textAlign: 'center', color: T.text.tertiary, marginTop: '60px' }}>
-                  <p style={{ fontSize: '15px' }}>No messages yet. Start the conversation!</p>
+                <div style={{ textAlign: 'center', color: T.text.secondary, marginTop: '60px', padding: '40px 20px' }}>
+                  <div style={{ fontSize: '48px', marginBottom: '16px' }}>💬</div>
+                  <p style={{ fontSize: '16px', fontWeight: 500, color: T.text.primary, marginBottom: '8px' }}>Start a conversation</p>
+                  <p style={{ fontSize: '14px', color: T.text.tertiary, maxWidth: '300px', margin: '0 auto' }}>
+                    Type a message below to chat with {activeChannel?.type === 'dm' ? activeChannel.name : 'your AI team'}. Use @mentions to address specific employees.
+                  </p>
                 </div>
               )}
               {messages.map((msg, i) => (
@@ -2202,13 +2290,15 @@ function App() {
               <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }} className="chat-input-area">
                 {activeChannel.type === 'dm' && (
                   <>
-                    <input type="file" ref={fileInputRef} onChange={handleFileSelect} style={{ display: 'none' }} accept=".txt,.md,.json,.csv,.py,.js,.ts,.jsx,.tsx,.html,.css,.xml,.yaml,.yml,.log,.sql" />
+                    <input type="file" ref={fileInputRef} onChange={handleFileSelect} style={{ display: 'none' }} accept=".txt,.md,.json,.csv,.py,.js,.ts,.jsx,.tsx,.html,.css,.xml,.yaml,.yml,.log,.sql" aria-label="Upload file" />
                     <button
                       onClick={() => fileInputRef.current?.click()}
                       disabled={isStreaming || uploading || uploadedFiles.length >= 5}
-                      style={{ ...styles.btn, background: T.bg.hover, color: T.text.primary, opacity: (isStreaming || uploading || uploadedFiles.length >= 5) ? 0.6 : 1, cursor: (isStreaming || uploading || uploadedFiles.length >= 5) ? 'not-allowed' : 'pointer', flexShrink: 0, border: `1px solid ${T.border.primary}` }}
+                      style={{ ...styles.btn, background: T.bg.hover, color: T.text.primary, opacity: (isStreaming || uploading || uploadedFiles.length >= 5) ? 0.6 : 1, cursor: (isStreaming || uploading || uploadedFiles.length >= 5) ? 'not-allowed' : 'pointer', flexShrink: 0, border: `1px solid ${T.border.primary}`, position: 'relative' }}
+                      aria-label={`Upload file (${uploadedFiles.length}/5 files)`}
+                      title={uploadedFiles.length >= 5 ? 'Maximum 5 files reached' : `Upload file (${uploadedFiles.length}/5)`}
                     >
-                      {uploading ? '...' : '+'}
+                      {uploading ? '...' : `+ ${uploadedFiles.length}/5`}
                     </button>
                   </>
                 )}
@@ -2303,6 +2393,9 @@ function App() {
                   {isStreaming ? 'Sending...' : 'Send'}
                 </button>
               </div>
+              <div style={{ fontSize: '11px', color: T.text.tertiary, marginTop: '6px', textAlign: 'right' }}>
+                Press <kbd style={{ padding: '2px 6px', background: T.bg.tertiary, borderRadius: '4px', border: `1px solid ${T.border.primary}` }}>Enter</kbd> to send
+              </div>
             </div>
           </>
         ) : (
@@ -2324,8 +2417,18 @@ function App() {
                 </div>
 
                 {employees.length === 0 ? (
-                  <div style={{ padding: '40px', background: T.bg.secondary, borderRadius: T.radius.lg, textAlign: 'center', color: T.text.secondary, border: `1px solid ${T.border.primary}` }}>
-                    <p style={{ margin: 0 }}>No employees yet. Add your first AI team member to get started.</p>
+                  <div style={{ padding: '50px 40px', background: T.bg.secondary, borderRadius: T.radius.lg, textAlign: 'center', border: `1px solid ${T.border.primary}` }}>
+                    <div style={{ fontSize: '48px', marginBottom: '16px' }}>👥</div>
+                    <p style={{ fontSize: '16px', fontWeight: 500, color: T.text.primary, margin: '0 0 8px 0' }}>Build your AI team</p>
+                    <p style={{ fontSize: '14px', color: T.text.tertiary, margin: '0 0 20px 0', maxWidth: '280px', marginLeft: 'auto', marginRight: 'auto' }}>
+                      Create AI employees with unique roles and expertise to help with your work.
+                    </p>
+                    <button
+                      onClick={() => { setShowRoleLibrary(true); fetchRoleLibrary() }}
+                      style={{ padding: '10px 20px', background: T.accent.primary, color: T.text.onAccent, border: 'none', borderRadius: T.radius.md, cursor: 'pointer', fontSize: '14px', fontWeight: 500, transition: T.transition.fast }}
+                    >
+                      Browse Role Library
+                    </button>
                   </div>
                 ) : (
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }}>
@@ -2424,9 +2527,9 @@ function App() {
 
       {/* Project Modal */}
       {showProjectModal && (
-        <div style={styles.modal} onClick={() => setShowProjectModal(false)}>
-          <div style={styles.modalContent} onClick={(e) => e.stopPropagation()}>
-            <h3 style={{ marginTop: 0 }}>{editingProject ? 'Edit Project' : 'New Project'}</h3>
+        <div style={styles.modal} onClick={() => setShowProjectModal(false)} role="presentation">
+          <div ref={projectModalRef} style={styles.modalContent} onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="project-modal-title">
+            <h3 id="project-modal-title" style={{ marginTop: 0 }}>{editingProject ? 'Edit Project' : 'New Project'}</h3>
             <form onSubmit={handleSaveProject}>
               <input type="text" placeholder="Project name" value={projectForm.name} onChange={(e) => setProjectForm({ ...projectForm, name: e.target.value })} style={styles.input} required />
               <textarea placeholder="Description (optional)" value={projectForm.description || ''} onChange={(e) => setProjectForm({ ...projectForm, description: e.target.value })} style={styles.textarea} />
@@ -2454,9 +2557,9 @@ function App() {
 
       {/* Employee Modal */}
       {showEmployeeModal && (
-        <div style={styles.modal} onClick={() => setShowEmployeeModal(false)}>
-          <div style={styles.modalContent} onClick={(e) => e.stopPropagation()}>
-            <h3 style={{ marginTop: 0 }}>{editingEmployee ? 'Edit Employee' : 'New Employee'}</h3>
+        <div style={styles.modal} onClick={() => setShowEmployeeModal(false)} role="presentation">
+          <div ref={employeeModalRef} style={styles.modalContent} onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="employee-modal-title">
+            <h3 id="employee-modal-title" style={{ marginTop: 0 }}>{editingEmployee ? 'Edit Employee' : 'New Employee'}</h3>
             <form onSubmit={handleSaveEmployee}>
               <input type="text" placeholder="Name" value={employeeForm.name} onChange={(e) => setEmployeeForm({ ...employeeForm, name: e.target.value })} style={styles.input} required disabled={editingEmployee?.is_default} />
               <input type="text" placeholder="Role (e.g., Developer, QA)" value={employeeForm.role || ''} onChange={(e) => setEmployeeForm({ ...employeeForm, role: e.target.value })} style={styles.input} />
@@ -2518,7 +2621,7 @@ function App() {
           <div style={{ ...styles.modalContent, maxWidth: '600px', maxHeight: '80vh', display: 'flex', flexDirection: 'column' }} onClick={(e) => e.stopPropagation()}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
               <h3 style={{ margin: 0, color: T.text.primary }}>File Preview</h3>
-              <button onClick={() => setFilePreview(null)} style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer', color: T.text.tertiary }}>×</button>
+              <button onClick={() => setFilePreview(null)} style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer', color: T.text.tertiary }} aria-label="Close file preview">×</button>
             </div>
             <div style={{ marginBottom: '15px', padding: '10px', background: T.bg.tertiary, borderRadius: T.radius.sm }}>
               <div style={{ fontWeight: 'bold', marginBottom: '4px', color: T.text.primary }}>{filePreview.name}</div>
@@ -2546,9 +2649,9 @@ function App() {
 
       {/* Usage Stats Modal */}
       {showUsageModal && (
-        <div style={styles.modal} onClick={() => setShowUsageModal(false)}>
-          <div style={{ ...styles.modalContent, maxWidth: '600px' }} onClick={(e) => e.stopPropagation()}>
-            <h3 style={{ marginTop: 0, color: T.text.primary }}>API Usage (Last 30 Days)</h3>
+        <div style={styles.modal} onClick={() => setShowUsageModal(false)} role="presentation">
+          <div ref={usageModalRef} style={{ ...styles.modalContent, maxWidth: '600px' }} onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="usage-modal-title">
+            <h3 id="usage-modal-title" style={{ marginTop: 0, color: T.text.primary }}>API Usage (Last 30 Days)</h3>
             {usageStats ? (
               <div>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '15px', marginBottom: '20px' }}>
@@ -2589,9 +2692,9 @@ function App() {
 
       {/* Role Library Modal */}
       {showRoleLibrary && (
-        <div style={styles.modal} onClick={() => setShowRoleLibrary(false)}>
-          <div style={{ ...styles.modalContent, maxWidth: '800px', maxHeight: '80vh', overflow: 'auto' }} onClick={(e) => e.stopPropagation()}>
-            <h3 style={{ marginTop: 0, display: 'flex', alignItems: 'center', gap: '10px', color: T.text.primary }}>
+        <div style={styles.modal} onClick={() => setShowRoleLibrary(false)} role="presentation">
+          <div ref={roleLibraryRef} style={{ ...styles.modalContent, maxWidth: '800px', maxHeight: '80vh', overflow: 'auto' }} onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="role-library-title">
+            <h3 id="role-library-title" style={{ marginTop: 0, display: 'flex', alignItems: 'center', gap: '10px', color: T.text.primary }}>
               Role Library
               <span style={{ fontSize: '12px', padding: '4px 10px', background: T.accent.infoMuted, color: T.accent.info, borderRadius: '12px' }}>
                 {roleLibrary.total_employees} active roles
@@ -2721,10 +2824,10 @@ function App() {
 
       {/* Confirmation Dialog */}
       {confirmDialog && (
-        <div style={styles.modal} onClick={() => setConfirmDialog(null)}>
-          <div style={{ ...styles.modalContent, maxWidth: '400px', textAlign: 'center' }} onClick={(e) => e.stopPropagation()}>
-            <h3 style={{ marginTop: 0, color: T.text.primary }}>{confirmDialog.title}</h3>
-            <p style={{ color: T.text.secondary, marginBottom: '24px', lineHeight: 1.5 }}>{confirmDialog.message}</p>
+        <div style={styles.modal} onClick={() => setConfirmDialog(null)} role="presentation">
+          <div ref={confirmDialogRef} style={{ ...styles.modalContent, maxWidth: '400px', textAlign: 'center' }} onClick={(e) => e.stopPropagation()} role="alertdialog" aria-modal="true" aria-labelledby="confirm-dialog-title" aria-describedby="confirm-dialog-desc">
+            <h3 id="confirm-dialog-title" style={{ marginTop: 0, color: T.text.primary }}>{confirmDialog.title}</h3>
+            <p id="confirm-dialog-desc" style={{ color: T.text.secondary, marginBottom: '24px', lineHeight: 1.5 }}>{confirmDialog.message}</p>
             <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
               <button
                 onClick={() => setConfirmDialog(null)}

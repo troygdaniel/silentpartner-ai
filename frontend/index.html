@@ -37,6 +37,20 @@
         .message-actions button { padding: 8px 12px !important; font-size: 14px !important; }
         input, textarea, select { min-height: 44px !important; font-size: 16px !important; }
       }
+
+      /* Visible focus indicators for accessibility */
+      input:focus, textarea:focus, select:focus, button:focus {
+        outline: 2px solid #8b5cf6 !important;
+        outline-offset: 2px !important;
+      }
+      input:focus-visible, textarea:focus-visible, select:focus-visible, button:focus-visible {
+        outline: 2px solid #8b5cf6 !important;
+        outline-offset: 2px !important;
+      }
+      /* For buttons that shouldn't show focus ring on mouse click */
+      button:focus:not(:focus-visible) {
+        outline: none !important;
+      }
     </style>
   </head>
   <body>
