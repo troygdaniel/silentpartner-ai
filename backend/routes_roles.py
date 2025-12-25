@@ -108,7 +108,6 @@ async def get_role_template_by_slug(
 
 
 class CreateEmployeeFromTemplate(BaseModel):
-    template_id: str
     name: Optional[str] = None  # Override the default name
     user_instructions: Optional[str] = None  # Additional user customizations
 
@@ -116,7 +115,7 @@ class CreateEmployeeFromTemplate(BaseModel):
 @router.post("/templates/{template_id}/create-employee")
 async def create_employee_from_template(
     template_id: str,
-    data: CreateEmployeeFromTemplate,
+    data: CreateEmployeeFromTemplate = CreateEmployeeFromTemplate(),
     user: dict = Depends(require_auth),
     db: AsyncSession = Depends(get_db)
 ) -> dict:

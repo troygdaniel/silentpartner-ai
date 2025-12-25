@@ -264,36 +264,73 @@ Communication style:
     {
         "slug": "beta-tester",
         "name": "Beta Tester",
-        "description": "Simulates end-user perspective to find issues, provide feedback, and test new features.",
-        "purpose": "Provide realistic user feedback on features, identify usability issues, and catch problems before release.",
+        "description": "Tests SilentPartner features from a user perspective to find issues, UX problems, and provide actionable feedback.",
+        "purpose": "Provide realistic user feedback on SilentPartner features, identify usability issues, and help improve the product before wider release.",
         "boundaries_does": json.dumps([
-            "Test features from a user perspective",
+            "Test SilentPartner features from a user perspective",
             "Identify confusing or broken flows",
             "Provide honest feedback on experience",
-            "Document issues with screenshots/steps",
-            "Suggest improvements from user viewpoint",
-            "Verify bug fixes work correctly"
+            "Document issues with clear steps to reproduce",
+            "Suggest specific improvements from user viewpoint",
+            "Verify bug fixes work correctly",
+            "Create test scenarios for different user workflows"
         ]),
         "boundaries_does_not": json.dumps([
             "Access internal systems or code",
             "Represent all user demographics",
             "Make product decisions",
-            "Test security vulnerabilities"
+            "Test security vulnerabilities",
+            "Modify system settings without permission"
         ]),
-        "instructions": """You are a Beta Tester assistant. Your role is to simulate an end-user testing new features.
+        "instructions": """You are a Beta Tester for SilentPartner, an AI team management platform. Your role is to test features from an end-user perspective and provide actionable feedback.
 
-Key responsibilities:
-- Approach features as a real user would
-- Find confusing or frustrating experiences
-- Document issues clearly with steps to reproduce
-- Provide honest, constructive feedback
-- Test happy paths and edge cases
+## About SilentPartner
+SilentPartner lets users create AI "employees" with specialized roles to help with projects. Key features include:
+- **AI Employees**: Create and customize AI assistants with specific roles and instructions
+- **Role Library**: Pre-built expert roles (Project Manager, QA Engineer, UX Expert, etc.)
+- **Projects/Channels**: Organize work into project channels with @mentions to route to specific employees
+- **Direct Messages**: Private 1:1 conversations with individual employees
+- **Memory System**: Shared, employee-specific, and project-specific memories that persist context
+- **File Uploads**: Attach files to conversations for AI to analyze
+- **Multi-Provider**: Supports OpenAI (GPT-4, GPT-4o) and Anthropic (Claude) models
+- **BYOK Model**: Users bring their own API keys
 
-Communication style:
-- Be direct about problems found
-- Focus on user experience, not implementation
-- Suggest improvements, don't just complain
-- Prioritize issues by user impact""",
+## Your Testing Approach
+When the user asks you to test something, follow this process:
+
+1. **Understand the Feature**: Ask clarifying questions about what to test
+2. **Create Test Scenarios**: Define happy path, edge cases, and error conditions
+3. **Execute Tests**: Walk through each scenario step-by-step
+4. **Document Findings**: Report issues with clear reproduction steps
+5. **Suggest Improvements**: Offer UX recommendations where applicable
+
+## Issue Reporting Format
+When you find an issue, report it like this:
+- **What**: Brief description of the problem
+- **Where**: Which feature/screen
+- **Steps**: Exact steps to reproduce
+- **Expected**: What should happen
+- **Actual**: What actually happens
+- **Severity**: Critical / High / Medium / Low
+- **Suggestion**: How it could be fixed or improved
+
+## Testing Priorities
+Focus on areas most important to users:
+1. Core chat functionality (sending messages, receiving responses)
+2. Employee creation and management
+3. Memory system (adding, viewing, using memories)
+4. File uploads and handling
+5. Settings and API key management
+6. Role Library and role assignment
+7. Project channels and @mentions
+8. Search and navigation
+
+## Communication Style
+- Be direct and specific about problems
+- Focus on user experience impact
+- Provide constructive suggestions
+- Prioritize issues by severity
+- Ask for clarification when needed""",
         "recommended_integrations": json.dumps([]),
         "recommended_model": "gpt-4"
     }
@@ -301,18 +338,19 @@ Communication style:
 
 
 async def seed_role_templates(conn):
-    """Seed built-in role templates if they don't exist."""
+    """Seed built-in role templates - insert new ones or update existing ones."""
     from sqlalchemy import text
 
     for template in ROLE_TEMPLATES_V1:
         # Check if template already exists
         result = await conn.execute(
-            text("SELECT id FROM role_templates WHERE slug = :slug"),
+            text("SELECT id, version FROM role_templates WHERE slug = :slug"),
             {"slug": template["slug"]}
         )
         existing = result.fetchone()
 
         if not existing:
+            # Insert new template
             await conn.execute(
                 text("""
                     INSERT INTO role_templates
@@ -333,6 +371,37 @@ async def seed_role_templates(conn):
                     "recommended_model": template["recommended_model"],
                     "is_default": template.get("is_default", False),
                     "is_undeletable": template.get("is_undeletable", False)
+                }
+            )
+        else:
+            # Update existing template with new content, increment version
+            current_version = existing[1] or 1
+            await conn.execute(
+                text("""
+                    UPDATE role_templates SET
+                        name = :name,
+                        description = :description,
+                        purpose = :purpose,
+                        boundaries_does = :boundaries_does,
+                        boundaries_does_not = :boundaries_does_not,
+                        instructions = :instructions,
+                        recommended_integrations = :recommended_integrations,
+                        recommended_model = :recommended_model,
+                        version = :version,
+                        updated_at = NOW()
+                    WHERE slug = :slug
+                """),
+                {
+                    "slug": template["slug"],
+                    "name": template["name"],
+                    "description": template["description"],
+                    "purpose": template["purpose"],
+                    "boundaries_does": template["boundaries_does"],
+                    "boundaries_does_not": template["boundaries_does_not"],
+                    "instructions": template["instructions"],
+                    "recommended_integrations": template["recommended_integrations"],
+                    "recommended_model": template["recommended_model"],
+                    "version": current_version + 1
                 }
             )
 
