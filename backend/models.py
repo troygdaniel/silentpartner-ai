@@ -15,6 +15,9 @@ class User(Base):
     name = Column(String, nullable=True)
     picture = Column(String, nullable=True)
     google_id = Column(String, unique=True, nullable=True, index=True)
+    google_access_token = Column(String, nullable=True)  # Encrypted Google access token
+    google_refresh_token = Column(String, nullable=True)  # Encrypted Google refresh token
+    google_token_expires_at = Column(DateTime, nullable=True)  # When access token expires
     is_active = Column(Boolean, default=True)
     openai_api_key = Column(String, nullable=True)  # Encrypted BYO key for OpenAI
     anthropic_api_key = Column(String, nullable=True)  # Encrypted BYO key for Anthropic

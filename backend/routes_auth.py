@@ -1,3 +1,4 @@
+from datetime import datetime, timedelta
 from fastapi import APIRouter, Depends
 from fastapi.responses import RedirectResponse, HTMLResponse
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -13,6 +14,7 @@ from auth import (
 )
 from database import get_db
 from models import User, Employee
+from crypto import encrypt_api_key
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
@@ -58,13 +60,25 @@ async def google_callback(
             </body></html>
         """, status_code=400)
 
-    # Exchange code for user info
-    google_user = await exchange_google_code(code)
+    # Exchange code for user info and tokens
+    auth_result = await exchange_google_code(code)
+
+    google_user = auth_result["user_info"]
+    google_access_token = auth_result["access_token"]
+    google_refresh_token = auth_result.get("refresh_token")
+    expires_in = auth_result.get("expires_in", 3600)
 
     google_id = google_user.get("id")
     email = google_user.get("email")
     name = google_user.get("name")
     picture = google_user.get("picture")
+
+    # Calculate token expiration
+    token_expires_at = datetime.utcnow() + timedelta(seconds=expires_in)
+
+    # Encrypt tokens for storage
+    encrypted_access_token = encrypt_api_key(google_access_token) if google_access_token else None
+    encrypted_refresh_token = encrypt_api_key(google_refresh_token) if google_refresh_token else None
 
     # Find or create user
     result = await db.execute(select(User).where(User.google_id == google_id))
@@ -78,7 +92,10 @@ async def google_callback(
             email=email,
             name=name,
             picture=picture,
-            google_id=google_id
+            google_id=google_id,
+            google_access_token=encrypted_access_token,
+            google_refresh_token=encrypted_refresh_token,
+            google_token_expires_at=token_expires_at
         )
         db.add(user)
         await db.commit()
@@ -96,10 +113,15 @@ async def google_callback(
         db.add(default_pm)
         await db.commit()
     else:
-        # Update existing user info
+        # Update existing user info and tokens
         user.name = name
         user.picture = picture
         user.email = email
+        user.google_access_token = encrypted_access_token
+        # Only update refresh token if we got a new one (not always returned)
+        if encrypted_refresh_token:
+            user.google_refresh_token = encrypted_refresh_token
+        user.google_token_expires_at = token_expires_at
         await db.commit()
 
     # Create JWT token

@@ -197,6 +197,86 @@ function useEscapeKey(isOpen, onClose) {
   }, [isOpen, onClose])
 }
 
+// Tool call execution for Google Sheets integration
+async function executeToolCalls(content, authHeaders) {
+  // Look for tool_call code blocks in the response
+  const toolCallRegex = /```tool_call\s*\n([\s\S]*?)\n```/g
+  const matches = [...content.matchAll(toolCallRegex)]
+
+  if (matches.length === 0) return { content, toolResults: [] }
+
+  const toolResults = []
+  let modifiedContent = content
+
+  for (const match of matches) {
+    try {
+      const toolCall = JSON.parse(match[1])
+      const { tool, ...params } = toolCall
+
+      let result = null
+      let endpoint = null
+
+      switch (tool) {
+        case 'create_google_sheet':
+          endpoint = '/api/google/sheets/create'
+          result = await fetch(endpoint, {
+            method: 'POST',
+            headers: authHeaders,
+            body: JSON.stringify({ title: params.title, sheets: params.sheets })
+          }).then(r => r.json())
+          break
+        case 'update_google_sheet':
+          endpoint = '/api/google/sheets/update'
+          result = await fetch(endpoint, {
+            method: 'POST',
+            headers: authHeaders,
+            body: JSON.stringify({
+              spreadsheet_id: params.spreadsheet_id,
+              range: params.range,
+              values: params.values
+            })
+          }).then(r => r.json())
+          break
+        case 'read_google_sheet':
+          endpoint = '/api/google/sheets/read'
+          result = await fetch(endpoint, {
+            method: 'POST',
+            headers: authHeaders,
+            body: JSON.stringify({
+              spreadsheet_id: params.spreadsheet_id,
+              range: params.range
+            })
+          }).then(r => r.json())
+          break
+        default:
+          result = { error: `Unknown tool: ${tool}` }
+      }
+
+      toolResults.push({ tool, params, result })
+
+      // Replace the tool_call block with the result
+      if (result && !result.error) {
+        let resultText = ''
+        if (tool === 'create_google_sheet' && result.url) {
+          resultText = `\n\n**Google Sheet created:** [${params.title}](${result.url})\n`
+        } else if (tool === 'update_google_sheet') {
+          resultText = `\n\n*Sheet updated: ${result.updated_cells || 0} cells modified*\n`
+        } else if (tool === 'read_google_sheet') {
+          resultText = `\n\n**Sheet data:**\n\`\`\`\n${JSON.stringify(result.values || [], null, 2)}\n\`\`\`\n`
+        }
+        modifiedContent = modifiedContent.replace(match[0], resultText)
+      } else if (result?.error || result?.detail) {
+        modifiedContent = modifiedContent.replace(match[0], `\n\n*Tool error: ${result.error || result.detail}*\n`)
+      }
+    } catch (e) {
+      console.error('Tool call error:', e)
+      modifiedContent = modifiedContent.replace(match[0], `\n\n*Tool execution failed: ${e.message}*\n`)
+    }
+  }
+
+  return { content: modifiedContent, toolResults }
+}
+
 // Instruction templates for common employee roles
 const INSTRUCTION_TEMPLATES = {
   '': { name: 'Custom (no template)', instructions: '' },
@@ -1467,12 +1547,24 @@ function App() {
         }
       }
 
+      // Execute any tool calls in the response (e.g., Google Sheets)
+      let finalContent = assistantContent
+      if (assistantContent.includes('```tool_call')) {
+        try {
+          const { content: processedContent } = await executeToolCalls(assistantContent, API_HEADERS())
+          finalContent = processedContent
+          setMessages([...newMessages, { role: 'assistant', content: finalContent, employee_id: employeeId }])
+        } catch (e) {
+          console.error('Error executing tool calls:', e)
+        }
+      }
+
       // Save assistant message
       await fetch('/api/messages', {
         method: 'POST',
         headers: API_HEADERS(),
         body: JSON.stringify({
-          content: assistantContent,
+          content: finalContent,
           role: 'assistant',
           project_id: activeChannel.type === 'project' ? activeChannel.id : null,
           employee_id: employeeId

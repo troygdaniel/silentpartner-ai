@@ -21,6 +21,7 @@ from routes_usage import router as usage_router
 from routes_export import router as export_router
 from routes_roles import router as roles_router
 from routes_memory_suggestions import router as memory_suggestions_router
+from routes_google import router as google_router
 import models  # noqa: F401 - Import to register models with Base
 
 
@@ -51,6 +52,7 @@ app.include_router(usage_router)
 app.include_router(export_router)
 app.include_router(roles_router)
 app.include_router(memory_suggestions_router)
+app.include_router(google_router)
 
 
 @app.get("/api/health")

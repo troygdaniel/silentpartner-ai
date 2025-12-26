@@ -17,6 +17,15 @@ JWT_EXPIRATION_HOURS = 24 * 7  # 1 week
 GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
 GOOGLE_USERINFO_URL = "https://www.googleapis.com/oauth2/v2/userinfo"
 
+# Google API scopes for Drive/Sheets access
+GOOGLE_SCOPES = " ".join([
+    "openid",
+    "email",
+    "profile",
+    "https://www.googleapis.com/auth/drive.file",  # Create/edit files user opens or creates
+    "https://www.googleapis.com/auth/spreadsheets",  # Full access to Sheets
+])
+
 security = HTTPBearer(auto_error=False)
 
 
@@ -37,7 +46,7 @@ def get_google_auth_url() -> str:
         "client_id": GOOGLE_CLIENT_ID,
         "redirect_uri": GOOGLE_REDIRECT_URI,
         "response_type": "code",
-        "scope": "openid email profile",
+        "scope": GOOGLE_SCOPES,
         "access_type": "offline",
         "prompt": "consent"
     }
@@ -99,7 +108,10 @@ async def require_auth(
 
 
 async def exchange_google_code(code: str) -> dict:
-    """Exchange authorization code for tokens and get user info."""
+    """Exchange authorization code for tokens and get user info.
+
+    Returns dict with 'user_info', 'access_token', 'refresh_token', and 'expires_in'.
+    """
     if not is_oauth_configured():
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -127,6 +139,8 @@ async def exchange_google_code(code: str) -> dict:
 
         tokens = token_response.json()
         access_token = tokens.get("access_token")
+        refresh_token = tokens.get("refresh_token")
+        expires_in = tokens.get("expires_in", 3600)  # Default 1 hour
 
         if not access_token:
             raise HTTPException(
@@ -146,4 +160,44 @@ async def exchange_google_code(code: str) -> dict:
                 detail="Failed to get user info"
             )
 
-        return userinfo_response.json()
+        return {
+            "user_info": userinfo_response.json(),
+            "access_token": access_token,
+            "refresh_token": refresh_token,
+            "expires_in": expires_in
+        }
+
+
+async def refresh_google_token(refresh_token: str) -> dict:
+    """Refresh a Google access token using a refresh token.
+
+    Returns dict with 'access_token' and 'expires_in'.
+    """
+    if not is_oauth_configured():
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Google OAuth not configured"
+        )
+
+    async with httpx.AsyncClient() as client:
+        token_response = await client.post(
+            GOOGLE_TOKEN_URL,
+            data={
+                "client_id": GOOGLE_CLIENT_ID,
+                "client_secret": GOOGLE_CLIENT_SECRET,
+                "refresh_token": refresh_token,
+                "grant_type": "refresh_token"
+            }
+        )
+
+        if token_response.status_code != 200:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Failed to refresh access token"
+            )
+
+        tokens = token_response.json()
+        return {
+            "access_token": tokens.get("access_token"),
+            "expires_in": tokens.get("expires_in", 3600)
+        }

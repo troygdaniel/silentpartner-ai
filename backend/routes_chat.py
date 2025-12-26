@@ -14,6 +14,104 @@ from crypto import decrypt_api_key
 from routes_memory import get_memories_for_employee, get_memories_for_project
 from routes_files import get_files_for_context
 
+# Google Sheets tools definition for AI function calling
+GOOGLE_SHEETS_TOOLS = [
+    {
+        "type": "function",
+        "function": {
+            "name": "create_google_sheet",
+            "description": "Create a new Google Sheet in the user's Google Drive. Use this when the user asks to create a spreadsheet, document data in a sheet, or organize information in a table format.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "title": {
+                        "type": "string",
+                        "description": "The title for the new Google Sheet"
+                    },
+                    "sheets": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "Optional list of sheet/tab names to create within the spreadsheet"
+                    }
+                },
+                "required": ["title"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "update_google_sheet",
+            "description": "Update values in an existing Google Sheet. Use this to write data to specific cells in a spreadsheet.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "spreadsheet_id": {
+                        "type": "string",
+                        "description": "The ID of the Google Sheet (from the URL)"
+                    },
+                    "range": {
+                        "type": "string",
+                        "description": "The A1 notation range to update (e.g., 'Sheet1!A1:B5' or 'A1:C10')"
+                    },
+                    "values": {
+                        "type": "array",
+                        "items": {
+                            "type": "array",
+                            "items": {"type": "string"}
+                        },
+                        "description": "2D array of values to write (rows of cells)"
+                    }
+                },
+                "required": ["spreadsheet_id", "range", "values"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "read_google_sheet",
+            "description": "Read values from a Google Sheet. Use this to retrieve data from a spreadsheet.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "spreadsheet_id": {
+                        "type": "string",
+                        "description": "The ID of the Google Sheet"
+                    },
+                    "range": {
+                        "type": "string",
+                        "description": "The A1 notation range to read (e.g., 'Sheet1!A1:B5')"
+                    }
+                },
+                "required": ["spreadsheet_id", "range"]
+            }
+        }
+    }
+]
+
+# Tool capability description to add to system prompts
+TOOLS_SYSTEM_PROMPT_ADDITION = """
+
+## Available Tools
+You have access to Google Sheets integration. When the user asks you to create spreadsheets, organize data in tables, or work with Google Sheets, you can use these capabilities:
+
+1. **Create Google Sheet**: Create a new spreadsheet in the user's Google Drive
+2. **Update Google Sheet**: Write data to cells in an existing spreadsheet
+3. **Read Google Sheet**: Read data from a spreadsheet
+
+When you need to use these tools, output a special JSON block that the system will execute:
+```tool_call
+{
+  "tool": "create_google_sheet",
+  "title": "My Spreadsheet",
+  "sheets": ["Sheet1", "Data"]
+}
+```
+
+The system will execute the tool and show the result. After creating a sheet, you'll receive the spreadsheet URL to share with the user.
+"""
+
 
 def compose_instructions(employee: Employee, role_template: RoleTemplate = None) -> str:
     """
@@ -344,6 +442,10 @@ async def chat(
             for f in files:
                 file_section += f"\n### {f['filename']}\n```\n{f['content']}\n```\n"
             system_prompt = system_prompt + file_section if system_prompt else file_section.strip()
+
+    # Add Google Sheets tools if user has Drive connected
+    if db_user.google_refresh_token:
+        system_prompt = system_prompt + TOOLS_SYSTEM_PROMPT_ADDITION if system_prompt else TOOLS_SYSTEM_PROMPT_ADDITION.strip()
 
     # Log usage before streaming (estimate based on input)
     await log_usage(db, user_id, employee.id, project_id, model, provider, system_prompt, api_messages)
