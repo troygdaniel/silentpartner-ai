@@ -105,17 +105,17 @@ You have access to Google Sheets. When the user asks you to create spreadsheets 
 Without the code fence, the tool will NOT execute.
 
 ### Create Google Sheet
-Creates a new spreadsheet in the user's Google Drive.
+Creates a new spreadsheet in the user's Google Drive. Returns the spreadsheet_id you'll need for updates.
 
 ```tool_call
 {"tool": "create_google_sheet", "title": "Spreadsheet Name", "sheets": ["Sheet1", "Sheet2"]}
 ```
 
 ### Update Google Sheet
-Writes data to cells in an existing spreadsheet.
+Writes data to cells in an existing spreadsheet. The `values` parameter is a 2D array where each inner array is a row.
 
 ```tool_call
-{"tool": "update_google_sheet", "spreadsheet_id": "abc123", "range": "Sheet1!A1:B2", "values": [["A1", "B1"], ["A2", "B2"]]}
+{"tool": "update_google_sheet", "spreadsheet_id": "THE_ID_FROM_CREATE", "range": "Sheet1!A1:C3", "values": [["Header1", "Header2", "Header3"], ["Row1Col1", "Row1Col2", "Row1Col3"], ["Row2Col1", "Row2Col2", "Row2Col3"]]}
 ```
 
 ### Read Google Sheet
@@ -125,7 +125,13 @@ Reads data from a spreadsheet.
 {"tool": "read_google_sheet", "spreadsheet_id": "abc123", "range": "Sheet1!A1:D10"}
 ```
 
-After you output a tool_call code block, the system will execute it and show the result including a clickable link to the spreadsheet.
+### Workflow for Creating and Populating a Sheet
+When the user asks you to create a sheet with data:
+1. First, output a create_google_sheet tool call
+2. The system will execute it and return the spreadsheet_id
+3. Then in a follow-up message, use update_google_sheet with that spreadsheet_id to add the data
+
+After each tool_call, the system shows the result. For create, it shows the URL and spreadsheet_id.
 '''
 
 

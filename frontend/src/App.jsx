@@ -265,10 +265,11 @@ async function executeToolCalls(content, authHeaders) {
       toolResults.push({ tool, params, result })
 
       // Replace the tool_call block with the result
-      if (result && !result.error) {
+      if (result && !result.error && !result.detail) {
         let resultText = ''
         if (tool === 'create_google_sheet' && result.url) {
-          resultText = `\n\n**Google Sheet created:** [${params.title}](${result.url})\n`
+          // Include spreadsheet_id so AI can reference it for updates
+          resultText = `\n\n**Google Sheet created:** [${params.title}](${result.url})\n*(spreadsheet_id: ${result.spreadsheet_id})*\n`
         } else if (tool === 'update_google_sheet') {
           resultText = `\n\n*Sheet updated: ${result.updated_cells || 0} cells modified*\n`
         } else if (tool === 'read_google_sheet') {
