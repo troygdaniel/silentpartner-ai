@@ -370,6 +370,8 @@ function App() {
   const [showRoleLibrary, setShowRoleLibrary] = useState(false)
   const [roleLibrary, setRoleLibrary] = useState({ templates: [], total_employees: 0 })
   const [loadingRoles, setLoadingRoles] = useState(false)
+  const [showUserMenu, setShowUserMenu] = useState(false)
+  const userMenuRef = useRef(null)
   const [memorySuggestions, setMemorySuggestions] = useState([])
   const [pendingSuggestionsCount, setPendingSuggestionsCount] = useState(0)
 
@@ -703,6 +705,18 @@ function App() {
       setFreshContextFrom(null) // Reset fresh context when switching channels
     }
   }, [activeChannel])
+
+  // Close user menu when clicking outside
+  useEffect(() => {
+    if (!showUserMenu) return
+    const handleClickOutside = (e) => {
+      if (userMenuRef.current && !userMenuRef.current.contains(e.target)) {
+        setShowUserMenu(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [showUserMenu])
 
   const handleLogin = () => { window.location.href = '/api/auth/google' }
   const handleLogout = () => { localStorage.removeItem('token'); setUser(null); setProjects([]); setEmployees([]) }
@@ -2105,22 +2119,99 @@ function App() {
           ))}
         </div>
 
-        {/* Fixed Footer */}
-        <div style={{ flexShrink: 0, padding: '15px', borderTop: `1px solid ${T.border.primary}` }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
-            <span style={{ width: '36px', height: '36px', borderRadius: T.radius.md, background: `linear-gradient(135deg, ${T.accent.primary}, ${T.accent.primaryHover})`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: T.text.onAccent, fontSize: '14px', fontWeight: 600 }}>
+        {/* Fixed Footer - User Profile with Dropdown */}
+        <div ref={userMenuRef} style={{ flexShrink: 0, padding: '12px', borderTop: `1px solid ${T.border.primary}`, position: 'relative' }}>
+          <button
+            onClick={() => setShowUserMenu(!showUserMenu)}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px',
+              width: '100%',
+              padding: '8px 10px',
+              background: showUserMenu ? T.bg.tertiary : 'transparent',
+              border: 'none',
+              borderRadius: T.radius.md,
+              cursor: 'pointer',
+              transition: T.transition.fast,
+              textAlign: 'left'
+            }}
+            onMouseOver={e => { if (!showUserMenu) e.currentTarget.style.background = T.bg.tertiary }}
+            onMouseOut={e => { if (!showUserMenu) e.currentTarget.style.background = 'transparent' }}
+            aria-expanded={showUserMenu}
+            aria-haspopup="menu"
+          >
+            <span style={{ width: '32px', height: '32px', borderRadius: T.radius.md, background: `linear-gradient(135deg, ${T.accent.primary}, ${T.accent.primaryHover})`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: T.text.onAccent, fontSize: '13px', fontWeight: 600, flexShrink: 0 }}>
               {user.name?.[0] || 'U'}
             </span>
             <div style={{ flex: 1, overflow: 'hidden' }}>
-              <div style={{ fontSize: '14px', fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: T.text.primary }}>{user.name}</div>
+              <div style={{ fontSize: '13px', fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: T.text.primary }}>{user.name}</div>
+              <div style={{ fontSize: '11px', color: T.text.tertiary }}>{user.email}</div>
             </div>
-          </div>
-          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-            <button onClick={() => { setShowSettings(true); setActiveChannel(null) }} style={{ ...styles.btn, flex: 1, background: T.bg.tertiary, color: T.text.primary, marginRight: 0, fontSize: '12px', border: `1px solid ${T.border.primary}` }} onMouseOver={e => e.target.style.background = T.bg.hover} onMouseOut={e => e.target.style.background = T.bg.tertiary}>Settings</button>
-            <button onClick={() => { fetchRoleLibrary(); setShowRoleLibrary(true) }} style={{ ...styles.btn, flex: 1, background: T.accent.primaryMuted, color: T.accent.primary, marginRight: 0, fontSize: '12px', border: `1px solid ${T.accent.primary}40` }} onMouseOver={e => e.target.style.background = T.accent.primary} onMouseOut={e => e.target.style.background = T.accent.primaryMuted}>Roles</button>
-            <button onClick={() => { fetchUsageStats(); setShowUsageModal(true) }} style={{ ...styles.btn, flex: 1, background: T.accent.infoMuted, color: T.accent.info, marginRight: 0, fontSize: '12px', border: `1px solid ${T.accent.info}40` }} onMouseOver={e => e.target.style.background = T.accent.info} onMouseOut={e => e.target.style.background = T.accent.infoMuted}>Usage</button>
-            <button onClick={handleLogout} style={{ ...styles.btn, flex: 1, background: T.accent.dangerMuted, color: T.accent.danger, marginRight: 0, fontSize: '12px', border: `1px solid ${T.accent.danger}40` }} onMouseOver={e => e.target.style.background = T.accent.danger} onMouseOut={e => e.target.style.background = T.accent.dangerMuted}>Logout</button>
-          </div>
+            <span style={{ color: T.text.tertiary, fontSize: '10px', transition: T.transition.fast, transform: showUserMenu ? 'rotate(180deg)' : 'rotate(0deg)' }}>▼</span>
+          </button>
+
+          {/* Dropdown Menu */}
+          {showUserMenu && (
+            <div
+              role="menu"
+              style={{
+                position: 'absolute',
+                bottom: '100%',
+                left: '12px',
+                right: '12px',
+                marginBottom: '4px',
+                background: T.bg.elevated,
+                border: `1px solid ${T.border.primary}`,
+                borderRadius: T.radius.lg,
+                boxShadow: T.shadow.lg,
+                overflow: 'hidden',
+                zIndex: 100
+              }}
+            >
+              <button
+                role="menuitem"
+                onClick={() => { setShowSettings(true); setActiveChannel(null); setShowUserMenu(false) }}
+                style={{ display: 'flex', alignItems: 'center', gap: '10px', width: '100%', padding: '12px 14px', background: 'transparent', border: 'none', color: T.text.primary, fontSize: '13px', cursor: 'pointer', transition: T.transition.fast, textAlign: 'left' }}
+                onMouseOver={e => e.currentTarget.style.background = T.bg.hover}
+                onMouseOut={e => e.currentTarget.style.background = 'transparent'}
+              >
+                <span style={{ width: '18px', opacity: 0.7 }}>⚙️</span>
+                Settings
+              </button>
+              <button
+                role="menuitem"
+                onClick={() => { fetchRoleLibrary(); setShowRoleLibrary(true); setShowUserMenu(false) }}
+                style={{ display: 'flex', alignItems: 'center', gap: '10px', width: '100%', padding: '12px 14px', background: 'transparent', border: 'none', color: T.text.primary, fontSize: '13px', cursor: 'pointer', transition: T.transition.fast, textAlign: 'left' }}
+                onMouseOver={e => e.currentTarget.style.background = T.bg.hover}
+                onMouseOut={e => e.currentTarget.style.background = 'transparent'}
+              >
+                <span style={{ width: '18px', opacity: 0.7 }}>👤</span>
+                Role Library
+              </button>
+              <button
+                role="menuitem"
+                onClick={() => { fetchUsageStats(); setShowUsageModal(true); setShowUserMenu(false) }}
+                style={{ display: 'flex', alignItems: 'center', gap: '10px', width: '100%', padding: '12px 14px', background: 'transparent', border: 'none', color: T.text.primary, fontSize: '13px', cursor: 'pointer', transition: T.transition.fast, textAlign: 'left' }}
+                onMouseOver={e => e.currentTarget.style.background = T.bg.hover}
+                onMouseOut={e => e.currentTarget.style.background = 'transparent'}
+              >
+                <span style={{ width: '18px', opacity: 0.7 }}>📊</span>
+                Usage Stats
+              </button>
+              <div style={{ height: '1px', background: T.border.primary, margin: '4px 0' }} />
+              <button
+                role="menuitem"
+                onClick={() => { handleLogout(); setShowUserMenu(false) }}
+                style={{ display: 'flex', alignItems: 'center', gap: '10px', width: '100%', padding: '12px 14px', background: 'transparent', border: 'none', color: T.accent.danger, fontSize: '13px', cursor: 'pointer', transition: T.transition.fast, textAlign: 'left' }}
+                onMouseOver={e => e.currentTarget.style.background = T.accent.dangerMuted}
+                onMouseOut={e => e.currentTarget.style.background = 'transparent'}
+              >
+                <span style={{ width: '18px', opacity: 0.7 }}>🚪</span>
+                Log out
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
