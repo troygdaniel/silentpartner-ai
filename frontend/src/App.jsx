@@ -200,8 +200,18 @@ function useEscapeKey(isOpen, onClose) {
 // Tool call execution for Google Sheets integration
 async function executeToolCalls(content, authHeaders) {
   // Look for tool_call code blocks in the response
-  const toolCallRegex = /```tool_call\s*\n([\s\S]*?)\n```/g
-  const matches = [...content.matchAll(toolCallRegex)]
+  const toolCallRegex = /```tool_call\s*\n?([\s\S]*?)\n?```/g
+  let matches = [...content.matchAll(toolCallRegex)]
+
+  // Fallback: also detect plain JSON tool calls without code fence
+  if (matches.length === 0) {
+    const plainJsonRegex = /\{\s*"tool"\s*:\s*"(create_google_sheet|update_google_sheet|read_google_sheet)"[^}]+\}/g
+    const plainMatches = [...content.matchAll(plainJsonRegex)]
+    if (plainMatches.length > 0) {
+      // Convert plain matches to look like code fence matches
+      matches = plainMatches.map(m => [m[0], m[0]])
+    }
+  }
 
   if (matches.length === 0) return { content, toolResults: [] }
 
@@ -1771,7 +1781,9 @@ function App() {
 
       // Execute any tool calls in the response (e.g., Google Sheets)
       let finalContent = assistantContent
-      if (assistantContent.includes('```tool_call')) {
+      const hasToolCall = assistantContent.includes('```tool_call') ||
+        /"tool"\s*:\s*"(create_google_sheet|update_google_sheet|read_google_sheet)"/.test(assistantContent)
+      if (hasToolCall) {
         try {
           const { content: processedContent } = await executeToolCalls(assistantContent, API_HEADERS())
           finalContent = processedContent

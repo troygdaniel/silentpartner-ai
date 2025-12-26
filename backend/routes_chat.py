@@ -91,26 +91,42 @@ GOOGLE_SHEETS_TOOLS = [
 ]
 
 # Tool capability description to add to system prompts
-TOOLS_SYSTEM_PROMPT_ADDITION = """
+TOOLS_SYSTEM_PROMPT_ADDITION = '''
 
-## Available Tools
-You have access to Google Sheets integration. When the user asks you to create spreadsheets, organize data in tables, or work with Google Sheets, you can use these capabilities:
+## Available Tools - Google Sheets Integration
+You have access to Google Sheets. When the user asks you to create spreadsheets or work with Google Sheets, use these tools.
 
-1. **Create Google Sheet**: Create a new spreadsheet in the user's Google Drive
-2. **Update Google Sheet**: Write data to cells in an existing spreadsheet
-3. **Read Google Sheet**: Read data from a spreadsheet
+**CRITICAL**: You MUST wrap the tool call JSON in a fenced code block with the language identifier `tool_call`. The format must be exactly:
 
-When you need to use these tools, output a special JSON block that the system will execute:
 ```tool_call
-{
-  "tool": "create_google_sheet",
-  "title": "My Spreadsheet",
-  "sheets": ["Sheet1", "Data"]
-}
+{"tool": "tool_name", ...params}
 ```
 
-The system will execute the tool and show the result. After creating a sheet, you'll receive the spreadsheet URL to share with the user.
-"""
+Without the code fence, the tool will NOT execute.
+
+### Create Google Sheet
+Creates a new spreadsheet in the user's Google Drive.
+
+```tool_call
+{"tool": "create_google_sheet", "title": "Spreadsheet Name", "sheets": ["Sheet1", "Sheet2"]}
+```
+
+### Update Google Sheet
+Writes data to cells in an existing spreadsheet.
+
+```tool_call
+{"tool": "update_google_sheet", "spreadsheet_id": "abc123", "range": "Sheet1!A1:B2", "values": [["A1", "B1"], ["A2", "B2"]]}
+```
+
+### Read Google Sheet
+Reads data from a spreadsheet.
+
+```tool_call
+{"tool": "read_google_sheet", "spreadsheet_id": "abc123", "range": "Sheet1!A1:D10"}
+```
+
+After you output a tool_call code block, the system will execute it and show the result including a clickable link to the spreadsheet.
+'''
 
 
 def compose_instructions(employee: Employee, role_template: RoleTemplate = None) -> str:
