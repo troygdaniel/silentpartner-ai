@@ -375,7 +375,229 @@ function renderMarkdown(text) {
   })
 }
 
+// Privacy Policy Page
+function PrivacyPolicy() {
+  return (
+    <div style={{ minHeight: '100vh', background: T.bg.primary, color: T.text.primary, fontFamily: "'Inter', system-ui, sans-serif" }}>
+      <div style={{ maxWidth: '800px', margin: '0 auto', padding: '60px 20px' }}>
+        <a href="/" style={{ color: T.accent.primary, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '8px', marginBottom: '40px' }}>
+          ← Back to QuietDesk
+        </a>
+        <h1 style={{ fontSize: '36px', fontWeight: 700, marginBottom: '40px' }}>Privacy Policy</h1>
+        <p style={{ color: T.text.secondary, marginBottom: '30px' }}>Last updated: December 26, 2024</p>
+
+        <section style={{ marginBottom: '40px' }}>
+          <h2 style={{ fontSize: '24px', fontWeight: 600, marginBottom: '16px' }}>1. Introduction</h2>
+          <p style={{ color: T.text.secondary, lineHeight: 1.7 }}>
+            QuietDesk ("we", "our", or "us") is committed to protecting your privacy. This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you use our application.
+          </p>
+        </section>
+
+        <section style={{ marginBottom: '40px' }}>
+          <h2 style={{ fontSize: '24px', fontWeight: 600, marginBottom: '16px' }}>2. Information We Collect</h2>
+          <p style={{ color: T.text.secondary, lineHeight: 1.7, marginBottom: '16px' }}>
+            We collect information that you provide directly to us, including:
+          </p>
+          <ul style={{ color: T.text.secondary, lineHeight: 1.7, paddingLeft: '24px' }}>
+            <li>Account information (name, email address) via Google Sign-In</li>
+            <li>Google profile picture and basic profile information</li>
+            <li>Content you create within the application (projects, employees, conversations)</li>
+            <li>API keys you optionally provide for AI services</li>
+            <li>Google Drive and Sheets data when you authorize access</li>
+          </ul>
+        </section>
+
+        <section style={{ marginBottom: '40px' }}>
+          <h2 style={{ fontSize: '24px', fontWeight: 600, marginBottom: '16px' }}>3. How We Use Your Information</h2>
+          <p style={{ color: T.text.secondary, lineHeight: 1.7, marginBottom: '16px' }}>
+            We use the information we collect to:
+          </p>
+          <ul style={{ color: T.text.secondary, lineHeight: 1.7, paddingLeft: '24px' }}>
+            <li>Provide, maintain, and improve our services</li>
+            <li>Authenticate your identity and manage your account</li>
+            <li>Process and respond to your requests</li>
+            <li>Create and manage Google Sheets on your behalf when requested</li>
+            <li>Send you technical notices and support messages</li>
+          </ul>
+        </section>
+
+        <section style={{ marginBottom: '40px' }}>
+          <h2 style={{ fontSize: '24px', fontWeight: 600, marginBottom: '16px' }}>4. Google API Services</h2>
+          <p style={{ color: T.text.secondary, lineHeight: 1.7, marginBottom: '16px' }}>
+            QuietDesk uses Google API Services to provide the following functionality:
+          </p>
+          <ul style={{ color: T.text.secondary, lineHeight: 1.7, paddingLeft: '24px' }}>
+            <li><strong>Google Sign-In:</strong> To authenticate users and access basic profile information</li>
+            <li><strong>Google Drive API:</strong> To create and manage files on behalf of users</li>
+            <li><strong>Google Sheets API:</strong> To create, read, and update spreadsheets when users request this functionality</li>
+          </ul>
+          <p style={{ color: T.text.secondary, lineHeight: 1.7, marginTop: '16px' }}>
+            QuietDesk's use and transfer to any other app of information received from Google APIs will adhere to the <a href="https://developers.google.com/terms/api-services-user-data-policy" style={{ color: T.accent.primary }}>Google API Services User Data Policy</a>, including the Limited Use requirements.
+          </p>
+        </section>
+
+        <section style={{ marginBottom: '40px' }}>
+          <h2 style={{ fontSize: '24px', fontWeight: 600, marginBottom: '16px' }}>5. Data Security</h2>
+          <p style={{ color: T.text.secondary, lineHeight: 1.7 }}>
+            We implement appropriate technical and organizational measures to protect your personal information. API keys and access tokens are encrypted at rest. However, no method of transmission over the Internet is 100% secure, and we cannot guarantee absolute security.
+          </p>
+        </section>
+
+        <section style={{ marginBottom: '40px' }}>
+          <h2 style={{ fontSize: '24px', fontWeight: 600, marginBottom: '16px' }}>6. Data Retention</h2>
+          <p style={{ color: T.text.secondary, lineHeight: 1.7 }}>
+            We retain your information for as long as your account is active or as needed to provide you services. You can request deletion of your account and associated data at any time by contacting us.
+          </p>
+        </section>
+
+        <section style={{ marginBottom: '40px' }}>
+          <h2 style={{ fontSize: '24px', fontWeight: 600, marginBottom: '16px' }}>7. Third-Party Services</h2>
+          <p style={{ color: T.text.secondary, lineHeight: 1.7 }}>
+            We may use third-party AI services (OpenAI, Anthropic) based on your configuration. Your conversations may be processed by these services according to their respective privacy policies. We recommend reviewing their policies before using their services.
+          </p>
+        </section>
+
+        <section style={{ marginBottom: '40px' }}>
+          <h2 style={{ fontSize: '24px', fontWeight: 600, marginBottom: '16px' }}>8. Your Rights</h2>
+          <p style={{ color: T.text.secondary, lineHeight: 1.7, marginBottom: '16px' }}>
+            You have the right to:
+          </p>
+          <ul style={{ color: T.text.secondary, lineHeight: 1.7, paddingLeft: '24px' }}>
+            <li>Access your personal information</li>
+            <li>Correct inaccurate data</li>
+            <li>Request deletion of your data</li>
+            <li>Revoke Google permissions at any time through your Google Account settings</li>
+          </ul>
+        </section>
+
+        <section style={{ marginBottom: '40px' }}>
+          <h2 style={{ fontSize: '24px', fontWeight: 600, marginBottom: '16px' }}>9. Contact Us</h2>
+          <p style={{ color: T.text.secondary, lineHeight: 1.7 }}>
+            If you have questions about this Privacy Policy, please contact us at: <a href="mailto:troygdaniel@gmail.com" style={{ color: T.accent.primary }}>troygdaniel@gmail.com</a>
+          </p>
+        </section>
+      </div>
+    </div>
+  )
+}
+
+// Terms of Service Page
+function TermsOfService() {
+  return (
+    <div style={{ minHeight: '100vh', background: T.bg.primary, color: T.text.primary, fontFamily: "'Inter', system-ui, sans-serif" }}>
+      <div style={{ maxWidth: '800px', margin: '0 auto', padding: '60px 20px' }}>
+        <a href="/" style={{ color: T.accent.primary, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '8px', marginBottom: '40px' }}>
+          ← Back to QuietDesk
+        </a>
+        <h1 style={{ fontSize: '36px', fontWeight: 700, marginBottom: '40px' }}>Terms of Service</h1>
+        <p style={{ color: T.text.secondary, marginBottom: '30px' }}>Last updated: December 26, 2024</p>
+
+        <section style={{ marginBottom: '40px' }}>
+          <h2 style={{ fontSize: '24px', fontWeight: 600, marginBottom: '16px' }}>1. Acceptance of Terms</h2>
+          <p style={{ color: T.text.secondary, lineHeight: 1.7 }}>
+            By accessing or using QuietDesk ("the Service"), you agree to be bound by these Terms of Service. If you do not agree to these terms, please do not use the Service.
+          </p>
+        </section>
+
+        <section style={{ marginBottom: '40px' }}>
+          <h2 style={{ fontSize: '24px', fontWeight: 600, marginBottom: '16px' }}>2. Description of Service</h2>
+          <p style={{ color: T.text.secondary, lineHeight: 1.7 }}>
+            QuietDesk is a productivity application that enables users to create AI-powered virtual employees to assist with various tasks including project management, communication, and document creation. The Service integrates with third-party services including Google Workspace and AI providers.
+          </p>
+        </section>
+
+        <section style={{ marginBottom: '40px' }}>
+          <h2 style={{ fontSize: '24px', fontWeight: 600, marginBottom: '16px' }}>3. User Accounts</h2>
+          <p style={{ color: T.text.secondary, lineHeight: 1.7, marginBottom: '16px' }}>
+            To use the Service, you must:
+          </p>
+          <ul style={{ color: T.text.secondary, lineHeight: 1.7, paddingLeft: '24px' }}>
+            <li>Sign in with a valid Google account</li>
+            <li>Provide accurate and complete information</li>
+            <li>Maintain the security of your account</li>
+            <li>Be responsible for all activities under your account</li>
+          </ul>
+        </section>
+
+        <section style={{ marginBottom: '40px' }}>
+          <h2 style={{ fontSize: '24px', fontWeight: 600, marginBottom: '16px' }}>4. Acceptable Use</h2>
+          <p style={{ color: T.text.secondary, lineHeight: 1.7, marginBottom: '16px' }}>
+            You agree not to use the Service to:
+          </p>
+          <ul style={{ color: T.text.secondary, lineHeight: 1.7, paddingLeft: '24px' }}>
+            <li>Violate any laws or regulations</li>
+            <li>Infringe on intellectual property rights</li>
+            <li>Transmit harmful or malicious content</li>
+            <li>Attempt to gain unauthorized access to systems</li>
+            <li>Interfere with or disrupt the Service</li>
+            <li>Use the AI features to generate harmful, misleading, or illegal content</li>
+          </ul>
+        </section>
+
+        <section style={{ marginBottom: '40px' }}>
+          <h2 style={{ fontSize: '24px', fontWeight: 600, marginBottom: '16px' }}>5. Third-Party Services</h2>
+          <p style={{ color: T.text.secondary, lineHeight: 1.7, marginBottom: '16px' }}>
+            The Service integrates with third-party services including:
+          </p>
+          <ul style={{ color: T.text.secondary, lineHeight: 1.7, paddingLeft: '24px' }}>
+            <li><strong>Google Services:</strong> For authentication and Google Workspace integration</li>
+            <li><strong>AI Providers:</strong> OpenAI and Anthropic for AI-powered features</li>
+          </ul>
+          <p style={{ color: T.text.secondary, lineHeight: 1.7, marginTop: '16px' }}>
+            Your use of these third-party services is subject to their respective terms and conditions.
+          </p>
+        </section>
+
+        <section style={{ marginBottom: '40px' }}>
+          <h2 style={{ fontSize: '24px', fontWeight: 600, marginBottom: '16px' }}>6. Intellectual Property</h2>
+          <p style={{ color: T.text.secondary, lineHeight: 1.7 }}>
+            The Service and its original content, features, and functionality are owned by QuietDesk and are protected by copyright, trademark, and other intellectual property laws. Content you create using the Service remains your property.
+          </p>
+        </section>
+
+        <section style={{ marginBottom: '40px' }}>
+          <h2 style={{ fontSize: '24px', fontWeight: 600, marginBottom: '16px' }}>7. Disclaimer of Warranties</h2>
+          <p style={{ color: T.text.secondary, lineHeight: 1.7 }}>
+            THE SERVICE IS PROVIDED "AS IS" AND "AS AVAILABLE" WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED. WE DO NOT GUARANTEE THAT THE SERVICE WILL BE UNINTERRUPTED, SECURE, OR ERROR-FREE. AI-GENERATED CONTENT MAY CONTAIN ERRORS OR INACCURACIES.
+          </p>
+        </section>
+
+        <section style={{ marginBottom: '40px' }}>
+          <h2 style={{ fontSize: '24px', fontWeight: 600, marginBottom: '16px' }}>8. Limitation of Liability</h2>
+          <p style={{ color: T.text.secondary, lineHeight: 1.7 }}>
+            TO THE MAXIMUM EXTENT PERMITTED BY LAW, QUIETDESK SHALL NOT BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, OR PUNITIVE DAMAGES, OR ANY LOSS OF PROFITS OR REVENUES, WHETHER INCURRED DIRECTLY OR INDIRECTLY.
+          </p>
+        </section>
+
+        <section style={{ marginBottom: '40px' }}>
+          <h2 style={{ fontSize: '24px', fontWeight: 600, marginBottom: '16px' }}>9. Changes to Terms</h2>
+          <p style={{ color: T.text.secondary, lineHeight: 1.7 }}>
+            We reserve the right to modify these terms at any time. We will notify users of significant changes. Your continued use of the Service after changes constitutes acceptance of the new terms.
+          </p>
+        </section>
+
+        <section style={{ marginBottom: '40px' }}>
+          <h2 style={{ fontSize: '24px', fontWeight: 600, marginBottom: '16px' }}>10. Termination</h2>
+          <p style={{ color: T.text.secondary, lineHeight: 1.7 }}>
+            We may terminate or suspend your access to the Service immediately, without prior notice, for conduct that we believe violates these Terms or is harmful to other users, us, or third parties, or for any other reason.
+          </p>
+        </section>
+
+        <section style={{ marginBottom: '40px' }}>
+          <h2 style={{ fontSize: '24px', fontWeight: 600, marginBottom: '16px' }}>11. Contact Us</h2>
+          <p style={{ color: T.text.secondary, lineHeight: 1.7 }}>
+            If you have questions about these Terms of Service, please contact us at: <a href="mailto:troygdaniel@gmail.com" style={{ color: T.accent.primary }}>troygdaniel@gmail.com</a>
+          </p>
+        </section>
+      </div>
+    </div>
+  )
+}
+
 function App() {
+  // Get pathname for routing
+  const pathname = window.location.pathname
+
   const [authStatus, setAuthStatus] = useState(null)
   const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -1572,6 +1794,14 @@ function App() {
       })
     } catch (err) { setChatError('Unable to connect. Check your internet connection and try again.') }
     setIsStreaming(false)
+  }
+
+  // Public routes - no auth required
+  if (pathname === '/privacy') {
+    return <PrivacyPolicy />
+  }
+  if (pathname === '/terms') {
+    return <TermsOfService />
   }
 
   if (loading) {
