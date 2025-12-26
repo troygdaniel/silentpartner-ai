@@ -2740,16 +2740,37 @@ function App() {
                   </optgroup>
                 </select>
                 <div style={{ flex: 1, minWidth: '0', position: 'relative' }}>
-                  <input
-                    type="text"
+                  <textarea
                     value={chatInput}
                     onChange={handleChatInputChange}
                     onKeyDown={handleChatInputKeyDown}
                     placeholder={activeChannel.type === 'project' ? 'Message #' + activeChannel.name + ' (type @ to mention)' : 'Message ' + activeChannel.name}
                     disabled={isStreaming}
-                    style={{ width: '100%', padding: '14px 16px', border: `1px solid ${T.border.primary}`, borderRadius: T.radius.md, fontSize: '14px', background: T.bg.tertiary, color: T.text.primary, outline: 'none', transition: T.transition.fast, boxSizing: 'border-box' }}
+                    rows={1}
+                    style={{
+                      width: '100%',
+                      padding: '14px 16px',
+                      border: `1px solid ${T.border.primary}`,
+                      borderRadius: T.radius.md,
+                      fontSize: '14px',
+                      background: T.bg.tertiary,
+                      color: T.text.primary,
+                      outline: 'none',
+                      transition: T.transition.fast,
+                      boxSizing: 'border-box',
+                      resize: 'none',
+                      overflow: 'hidden',
+                      minHeight: '48px',
+                      maxHeight: '200px',
+                      lineHeight: '1.5',
+                      fontFamily: 'inherit'
+                    }}
                     onFocus={e => e.target.style.borderColor = T.accent.primary}
                     onBlur={e => { e.target.style.borderColor = T.border.primary; setTimeout(() => setMentionDropdown({ show: false, matches: [], position: 0, selectedIndex: 0 }), 150) }}
+                    onInput={e => {
+                      e.target.style.height = 'auto'
+                      e.target.style.height = Math.min(e.target.scrollHeight, 200) + 'px'
+                    }}
                   />
                   {/* @mention autocomplete dropdown */}
                   {mentionDropdown.show && activeChannel.type === 'project' && (
@@ -2810,7 +2831,7 @@ function App() {
                 </button>
               </div>
               <div style={{ fontSize: '11px', color: T.text.tertiary, marginTop: '6px', textAlign: 'right' }}>
-                Press <kbd style={{ padding: '2px 6px', background: T.bg.tertiary, borderRadius: '4px', border: `1px solid ${T.border.primary}` }}>Enter</kbd> to send
+                <kbd style={{ padding: '2px 6px', background: T.bg.tertiary, borderRadius: '4px', border: `1px solid ${T.border.primary}` }}>Enter</kbd> to send · <kbd style={{ padding: '2px 6px', background: T.bg.tertiary, borderRadius: '4px', border: `1px solid ${T.border.primary}` }}>Shift+Enter</kbd> for new line
               </div>
             </div>
           </>
