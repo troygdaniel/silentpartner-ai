@@ -671,3 +671,14 @@ async def run_migrations():
 
             # Phase 2.3: Seed built-in role templates (v1)
             await seed_role_templates(conn)
+
+            # Google OAuth token columns for Sheets/Drive integration
+            await conn.execute(text(
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS google_access_token VARCHAR"
+            ))
+            await conn.execute(text(
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS google_refresh_token VARCHAR"
+            ))
+            await conn.execute(text(
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS google_token_expires_at TIMESTAMP"
+            ))
