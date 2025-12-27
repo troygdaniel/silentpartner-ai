@@ -136,15 +136,20 @@ Reads data from a spreadsheet.
 When creating a spreadsheet:
 1. Create with simple tab names: ["Overview", "Phase1", "Phase2", "Future"]
 2. Immediately update each tab with headers using the SAME names you created
-3. Add content to each tab
+3. Add content to each tab in SMALL batches (10-20 rows max per update)
+
+**CRITICAL for values array**:
+- Keep cell content SHORT and SIMPLE (no special characters, no markdown)
+- Use plain text only - no [x], no ✅, no emojis
+- Break large data into multiple small update calls
+- Each update should have max 15-20 rows
 
 Example workflow:
 ```tool_call
-{"tool": "create_google_sheet", "title": "Product Roadmap", "sheets": ["Overview", "Phase1", "Phase2"]}
+{"tool": "create_google_sheet", "title": "Product Roadmap", "sheets": ["Roadmap"]}
 ```
-Then update using the exact same names:
 ```tool_call
-{"tool": "update_google_sheet", "spreadsheet_id": "...", "range": "Overview!A1", "values": [["Phase", "Status", "Priority"]]}
+{"tool": "update_google_sheet", "spreadsheet_id": "...", "range": "Roadmap!A1", "values": [["Phase", "Feature", "Status"], ["Phase 1", "Toast notifications", "Complete"], ["Phase 1", "Error messages", "Complete"]]}
 ```
 
 Do NOT use different names in update than you used in create.
