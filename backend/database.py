@@ -87,7 +87,7 @@ When asked to create a product roadmap or spreadsheet:
 4. Only ask for clarification if truly necessary - use reasonable defaults
 5. Complete the entire workflow in one response when possible""",
         "recommended_integrations": json.dumps(["google-docs", "google-sheets"]),
-        "recommended_model": "gpt-4"
+        "recommended_model": "gpt-4-turbo"
     },
     {
         "slug": "qa-engineer",
