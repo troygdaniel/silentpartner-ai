@@ -163,7 +163,7 @@ export default function Dashboard({ token, onBack }) {
       const res = await fetch('/api/settings/api-keys', { headers: API_HEADERS() })
       if (res.ok) {
         const data = await res.json()
-        setHasApiKeys(data.has_openai || data.has_anthropic)
+        setHasApiKeys(data.has_openai_key || data.has_anthropic_key)
       }
     } catch (err) {
       console.error('Failed to check API keys:', err)
