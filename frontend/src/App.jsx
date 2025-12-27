@@ -198,7 +198,8 @@ function useEscapeKey(isOpen, onClose) {
 }
 
 // Tool call execution for Google Sheets integration
-async function executeToolCalls(content, authHeaders) {
+// conversationHistory is optional - when provided, we scan it for previously created spreadsheet IDs
+async function executeToolCalls(content, authHeaders, conversationHistory = []) {
   // Look for tool_call code blocks in the response
   const toolCallRegex = /```tool_call\s*\n?([\s\S]*?)\n?```/g
   let matches = [...content.matchAll(toolCallRegex)]
@@ -221,6 +222,23 @@ async function executeToolCalls(content, authHeaders) {
   // Track the last created spreadsheet ID so we can substitute it into subsequent update/read calls
   // This is needed because the AI outputs all tool calls at once, using placeholders for IDs
   let lastCreatedSpreadsheetId = null
+
+  // Scan conversation history for previously created spreadsheet IDs
+  // This handles the case where sheet was created in an earlier message
+  if (conversationHistory && conversationHistory.length > 0) {
+    for (const msg of conversationHistory) {
+      if (msg.content) {
+        // Look for pattern: (spreadsheet_id: XXXXX)
+        const idMatch = msg.content.match(/\(spreadsheet_id:\s*([a-zA-Z0-9_-]+)/);
+        if (idMatch && idMatch[1] && idMatch[1].length >= 30) {
+          lastCreatedSpreadsheetId = idMatch[1]
+        }
+      }
+    }
+    if (lastCreatedSpreadsheetId) {
+      console.log('Found spreadsheet_id from conversation history:', lastCreatedSpreadsheetId)
+    }
+  }
 
   for (const match of matches) {
     try {
@@ -1819,7 +1837,8 @@ function App() {
         /"tool"\s*:\s*"(create_google_sheet|update_google_sheet|read_google_sheet)"/.test(assistantContent)
       if (hasToolCall) {
         try {
-          const { content: processedContent } = await executeToolCalls(assistantContent, API_HEADERS())
+          // Pass conversation history so we can find previously created spreadsheet IDs
+          const { content: processedContent } = await executeToolCalls(assistantContent, API_HEADERS(), newMessages)
           finalContent = processedContent
           setMessages([...newMessages, { role: 'assistant', content: finalContent, employee_id: employeeId }])
         } catch (e) {
