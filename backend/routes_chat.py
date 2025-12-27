@@ -107,12 +107,16 @@ Without the code fence, the tool will NOT execute.
 ### Create Google Sheet
 Creates a new spreadsheet in the user's Google Drive. Returns the spreadsheet_id you'll need for updates.
 
+**Important**: Sheet tab names must NOT look like cell references. Avoid "Q1", "A1", "B2" etc. Use descriptive names like "Roadmap", "Data", "Summary", or just omit the sheets parameter to use the default "Sheet1".
+
 ```tool_call
-{"tool": "create_google_sheet", "title": "Spreadsheet Name", "sheets": ["Sheet1", "Sheet2"]}
+{"tool": "create_google_sheet", "title": "Spreadsheet Name", "sheets": ["Roadmap", "Data"]}
 ```
 
 ### Update Google Sheet
 Writes data to cells in an existing spreadsheet. The `values` parameter is a 2D array where each inner array is a row.
+
+For the range, use format: `SheetName!A1:C3`. If the sheet name has spaces or special characters, wrap it in single quotes: `'My Sheet'!A1:C3`
 
 ```tool_call
 {"tool": "update_google_sheet", "spreadsheet_id": "THE_ID_FROM_CREATE", "range": "Sheet1!A1:C3", "values": [["Header1", "Header2", "Header3"], ["Row1Col1", "Row1Col2", "Row1Col3"], ["Row2Col1", "Row2Col2", "Row2Col3"]]}
