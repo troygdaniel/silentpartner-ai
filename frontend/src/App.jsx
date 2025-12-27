@@ -218,6 +218,10 @@ async function executeToolCalls(content, authHeaders) {
   const toolResults = []
   let modifiedContent = content
 
+  // Track the last created spreadsheet ID so we can substitute it into subsequent update/read calls
+  // This is needed because the AI outputs all tool calls at once, using placeholders for IDs
+  let lastCreatedSpreadsheetId = null
+
   for (const match of matches) {
     try {
       const toolCall = JSON.parse(match[1])
@@ -234,30 +238,58 @@ async function executeToolCalls(content, authHeaders) {
             headers: authHeaders,
             body: JSON.stringify({ title: params.title, sheets: params.sheets })
           }).then(r => r.json())
+          // Store the created spreadsheet ID for subsequent calls
+          if (result && result.spreadsheet_id) {
+            lastCreatedSpreadsheetId = result.spreadsheet_id
+          }
           break
-        case 'update_google_sheet':
+        case 'update_google_sheet': {
           endpoint = '/api/google/sheets/update'
+          // Use the last created spreadsheet ID if the provided one looks like a placeholder
+          // or if it doesn't match a real Google Sheets ID format (44 chars)
+          let spreadsheetId = params.spreadsheet_id
+          if (lastCreatedSpreadsheetId &&
+              (!spreadsheetId ||
+               spreadsheetId.includes('SPREADSHEET_ID') ||
+               spreadsheetId.includes('placeholder') ||
+               spreadsheetId.length < 30 ||
+               spreadsheetId === 'new_spreadsheet_id')) {
+            spreadsheetId = lastCreatedSpreadsheetId
+            console.log('Substituted spreadsheet_id:', spreadsheetId)
+          }
           result = await fetch(endpoint, {
             method: 'POST',
             headers: authHeaders,
             body: JSON.stringify({
-              spreadsheet_id: params.spreadsheet_id,
+              spreadsheet_id: spreadsheetId,
               range: params.range,
               values: params.values
             })
           }).then(r => r.json())
           break
-        case 'read_google_sheet':
+        }
+        case 'read_google_sheet': {
           endpoint = '/api/google/sheets/read'
+          // Same substitution logic for read calls
+          let spreadsheetId = params.spreadsheet_id
+          if (lastCreatedSpreadsheetId &&
+              (!spreadsheetId ||
+               spreadsheetId.includes('SPREADSHEET_ID') ||
+               spreadsheetId.includes('placeholder') ||
+               spreadsheetId.length < 30 ||
+               spreadsheetId === 'new_spreadsheet_id')) {
+            spreadsheetId = lastCreatedSpreadsheetId
+          }
           result = await fetch(endpoint, {
             method: 'POST',
             headers: authHeaders,
             body: JSON.stringify({
-              spreadsheet_id: params.spreadsheet_id,
+              spreadsheet_id: spreadsheetId,
               range: params.range
             })
           }).then(r => r.json())
           break
+        }
         default:
           result = { error: `Unknown tool: ${tool}` }
       }
