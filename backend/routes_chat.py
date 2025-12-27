@@ -94,7 +94,6 @@ GOOGLE_SHEETS_TOOLS = [
 TOOLS_SYSTEM_PROMPT_ADDITION = '''
 
 ## Available Tools - Google Sheets Integration
-You have access to Google Sheets. When the user asks you to create spreadsheets, roadmaps, or organize data, use these tools proactively.
 
 **CRITICAL**: You MUST wrap the tool call JSON in a fenced code block with the language identifier `tool_call`. The format must be exactly:
 
@@ -104,55 +103,48 @@ You have access to Google Sheets. When the user asks you to create spreadsheets,
 
 Without the code fence, the tool will NOT execute.
 
-### Create Google Sheet
-Creates a new spreadsheet in the user's Google Drive. Returns the spreadsheet_id and sheet names you'll need for updates.
+### Create Roadmap - USE THIS FOR ANY ROADMAP/PROJECT PLAN
 
-**Important**: Use simple sheet tab names WITHOUT spaces. Avoid names that look like cell references (Q1, A1, B2).
+**ALWAYS use `create_roadmap` when:**
+- User asks for a roadmap, product plan, project plan, or feature list
+- User provides markdown content with phases/sections
+- User wants to organize features, tasks, or milestones in a spreadsheet
 
-```tool_call
-{"tool": "create_google_sheet", "title": "Spreadsheet Name", "sheets": ["Overview", "Phase1", "Phase2", "Future"]}
-```
+This tool MUST be used instead of create_google_sheet + update_google_sheet for roadmaps. It:
+- Parses markdown content automatically to extract ALL phases and items
+- Creates complete spreadsheet with Overview + individual phase sheets
+- Formats headers, freezes rows, applies styling
+- Handles everything in ONE atomic operation - no follow-up updates needed
+- Never misses data or creates blank rows
 
-### Update Google Sheet
-Writes data to cells in an existing spreadsheet. The `values` parameter is a 2D array where each inner array is a row.
-
-**CRITICAL**:
-- Use ONLY the starting cell (e.g., `Overview!A1`), NOT a full range - the API auto-expands
-- Use the EXACT sheet names you specified in the create call
-- If you created ["Overview", "Phase1"], use `Overview!A1` and `Phase1!A1`
-
-```tool_call
-{"tool": "update_google_sheet", "spreadsheet_id": "THE_ID", "range": "Overview!A1", "values": [["Col1", "Col2"], ["Row1", "Val1"]]}
-```
-
-### Read Google Sheet
-Reads data from a spreadsheet.
+**IMPORTANT**: Pass the ENTIRE markdown content to the `content` parameter. Include all phases, all items, all checkboxes. The parser handles everything.
 
 ```tool_call
-{"tool": "read_google_sheet", "spreadsheet_id": "abc123", "range": "Sheet1!A1:D10"}
+{"tool": "create_roadmap", "title": "Product Roadmap", "content": "THE ENTIRE MARKDOWN CONTENT HERE"}
 ```
 
-### IMPORTANT: Complete Workflow
-When creating a spreadsheet:
-1. Create with simple tab names: ["Overview", "Phase1", "Phase2", "Future"]
-2. Immediately update each tab with headers using the SAME names you created
-3. Add content to each tab in SMALL batches (10-20 rows max per update)
+When user provides roadmap markdown, copy it ALL into the content field. The parser understands:
+- Phase headers: `## Phase 1: Title`, `### Phase 1`, `**Phase 1: Title**`
+- Features: `**Feature Name**: Description`, `- Feature name: description`
+- Tasks: `- [ ] Task` (not started), `- [x] Task` (completed)
+- Bullet points and numbered lists
 
-**CRITICAL for values array**:
-- Keep cell content SHORT and SIMPLE (no special characters, no markdown)
-- Use plain text only - no [x], no ✅, no emojis
-- Break large data into multiple small update calls
-- Each update should have max 15-20 rows
+### Other Tools (for non-roadmap use)
 
-Example workflow:
+**create_google_sheet** - Only for simple data tables, NOT roadmaps:
 ```tool_call
-{"tool": "create_google_sheet", "title": "Product Roadmap", "sheets": ["Roadmap"]}
-```
-```tool_call
-{"tool": "update_google_sheet", "spreadsheet_id": "...", "range": "Roadmap!A1", "values": [["Phase", "Feature", "Status"], ["Phase 1", "Toast notifications", "Complete"], ["Phase 1", "Error messages", "Complete"]]}
+{"tool": "create_google_sheet", "title": "Data Table", "sheets": ["Sheet1"]}
 ```
 
-Do NOT use different names in update than you used in create.
+**update_google_sheet** - Only for updating existing sheets:
+```tool_call
+{"tool": "update_google_sheet", "spreadsheet_id": "ID", "range": "Sheet1!A1", "values": [["A", "B"]]}
+```
+
+**read_google_sheet** - Read data from sheets:
+```tool_call
+{"tool": "read_google_sheet", "spreadsheet_id": "ID", "range": "Sheet1!A1:D10"}
+```
 '''
 
 

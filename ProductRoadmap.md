@@ -1,10 +1,16 @@
-# SilentPartner Product Roadmap
+# QuietDesk Product Roadmap
 
-This roadmap outlines planned features and improvements, organized into iterative releases.
+This roadmap outlines planned features and improvements for QuietDesk (formerly SilentPartner) - a consulting firm in your pocket.
 
-## Current State (v1.0)
+## Vision
 
-**Core Features Shipped:**
+QuietDesk provides users with a virtual consulting team that works behind the scenes. Users submit requests, the team deliberates, and delivers polished outputs (reports, roadmaps, analyses) - without requiring users to manage the inner workings.
+
+---
+
+## Current State (v1.0) - Legacy "SilentPartner" Mode
+
+**Core Features Shipped (Classic Mode):**
 - Google OAuth authentication
 - AI employee creation with custom instructions
 - Project channels with @mention routing
@@ -14,252 +20,181 @@ This roadmap outlines planned features and improvements, organized into iterativ
 - File uploads (persistent for both DMs and projects)
 - Multi-provider support (OpenAI + Anthropic)
 - BYOK (Bring Your Own Keys) model
+- Built-in role library (Project Manager, Product Manager, QA, UX, etc.)
+- Google Sheets integration
 
 ---
 
-## Phase 1: Polish & Reliability ✅ (Complete)
+## Phase QD-1: QuietDesk Foundation (In Progress)
 
-**Goal:** Improve stability and user experience for existing features.
+**Goal:** Transform from chat-centric to deliverable-centric UX.
 
-### 1.1 Error Handling & Feedback
-- [x] Toast notifications for success/error states ✅
-- [x] Better error messages when API keys are invalid ✅
-- [x] Retry logic for failed API calls ✅
-- [x] Loading states for all async operations ✅
+### QD-1.1 Core Architecture
+- [x] New data models: Request, Deliverable, TeamMember, RequestMessage
+- [x] Pre-instantiated consulting team on user signup
+- [x] Dashboard API endpoints (/api/dashboard/*)
+- [x] Request submission and tracking
+- [x] Deliverable storage and retrieval
 
-### 1.2 Chat Improvements
-- [x] Message timestamps displayed in UI ✅
-- [x] Edit/delete individual messages ✅
-- [x] Copy message to clipboard button ✅
-- [x] Markdown rendering for AI responses ✅
-- [x] Code syntax highlighting in responses ✅
-- [x] Clear chat history button ✅
+### QD-1.2 The Team (Default Configuration)
+Pre-instantiated team with names and roles:
+- [x] Quincy (Project Manager) - Lead, user-facing orchestrator
+- [x] Jordan (Product Manager) - Roadmaps, PRDs, prioritization
+- [x] Sam (Technical Advisor) - Architecture, feasibility
+- [x] Riley (QA Engineer) - Testing, quality assurance
+- [x] Morgan (UX Expert) - Design, usability
+- [x] Taylor (Marketing Consultant) - Positioning, messaging
+- [x] Casey (Research Analyst) - Market research, competitors
 
-### 1.3 File Handling
-- [x] Persist DM file uploads (currently session-only) ✅
-- [x] File preview before upload ✅
-- [ ] Support larger files with chunking
-- [x] Download uploaded files ✅
+### QD-1.3 Request Types
+- [x] Roadmap - Product roadmaps with phases and features
+- [x] Analysis - Competitive, market, or technical analysis
+- [x] Audit - Review existing feature/product for issues
+- [x] Review - Feedback on ideas, docs, or designs
+- [x] Research - Topic investigation
+- [x] Custom - Open-ended requests
 
-### 1.4 Mobile Responsiveness
-- [x] Collapsible sidebar on mobile ✅
-- [x] Touch-friendly interactions ✅
-- [x] Responsive chat input area ✅
-
----
-
-## Phase 2: Enhanced AI Capabilities ✅ (Complete)
-
-**Goal:** Make AI employees smarter and more capable.
-
-### 2.1 Model Expansion
-- [x] Add GPT-4 Turbo option ✅
-- [x] Add Claude 3.5 Sonnet ✅
-- [x] Add Claude 3 Haiku (faster, cheaper option) ✅
-- [x] Add GPT-4o and GPT-4o Mini ✅
-- [x] Model selection per conversation (not just per employee) ✅
-
-### 2.2 Context Management
-- [x] Token count display for conversations ✅
-- [x] Automatic conversation summarization for long chats ✅
-- [x] "Start fresh" button to clear context without deleting history ✅
-
-### 2.3 Advanced Instructions & Roles
-
-#### Role Definition Contract (Applies to All Roles)
-
-All built-in and user-created roles in SilentPartner follow these rules:
-
-- **Advisory, not autonomous:** Roles provide analysis, drafts, plans, and recommendations. They do not execute external actions, modify systems, send messages, or act without explicit user initiation.
-- **User-owned:** All roles are owned by the user. System-provided roles are templates that can be customized, cloned, or reset, but never removed if marked as default (e.g., Project Manager).
-- **Clear scope:** Each role has an explicit purpose and boundaries (“does” and “does not”) to avoid overlap and confusion.
-- **Memory discipline:** Roles may read from shared or project memory, but only write memory when explicitly instructed or when the user approves suggested memory updates.
-- **Read-only integrations:** External integrations (Google Drive, Docs, Sheets, Gmail, etc.) are read-only by default and must be explicitly enabled by the user.
-- **Transparency:** All role outputs are visible, reviewable artifacts. No background actions occur without user awareness.
-
-**Goal:** Provide ready-to-use expert roles with strong defaults that can be customized and safely reset.
-
-- [x] Instruction templates/presets ✅
-- [x] Variables in instructions (e.g., {{user_name}}) ✅
-- [x] Conditional instructions based on project ✅
-- [x] Import/export employee configurations ✅
-- [x] Built-in expert role library (system-provided) ✅
-- [x] One-click add role to workspace ✅
-- [x] Role descriptions & intended use ✅
-- [x] Reset role to system defaults ✅
-- [x] Versioned role templates (safe updates over time) ✅
-
-#### 2.3.1 Built-in Expert Roles (v1)
-- Project Manager (default, undeletable)
-- Product Manager
-- QA Engineer
-- UX/UI Expert
-- Technical Advisor (CTO-style)
-- Finance Advisor (CFO-style)
-- Research Analyst
-- Beta Tester
-
-#### 2.3.2 Phase 2.3 Implementation Sequence
-
-To reduce risk and prevent scope creep, Phase 2.3 should be implemented in the following order:
-
-1. **Role Data Model**
-   - Define role templates as versioned system objects
-   - Separate system defaults from user-customized copies
-   - Persist role purpose, boundaries, and recommended integrations
-
-2. **Role Creation & Lifecycle**
-   - One-click add role from library
-   - Clone existing role
-   - Reset role to system defaults
-   - Prevent deletion of default Project Manager role
-
-3. **Instruction Composition**
-   - Merge system role instructions + user overrides at runtime
-   - Preserve full transparency of final instruction text
-   - Support safe updates when system role versions change
-
-4. **Memory Interaction Rules**
-   - Enforce read/write rules defined in the Role Definition Contract
-   - Allow roles to suggest memory updates for user approval
-   - Track memory provenance by role
-
-5. **UI & Onboarding**
-   - Role Library browsing and selection
-   - Clear descriptions of when to use each role
-   - Inline warnings for overlapping roles or misuse
-
-6. **Analytics & Guardrails**
-   - Track role usage frequency
-   - Detect unused or redundant roles
-   - Surface gentle recommendations (e.g., “You may not need both QA and Beta Tester”)
-
-### 2.4 Memory Enhancements
-- [x] Manual memory creation from UI ✅
-- [x] Delete individual memories from UI ✅
-- [x] Memory categories/tags ✅
-- [x] Memory search ✅
-- [x] Bulk memory import/export ✅
+### QD-1.4 Dashboard UI
+- [x] Dashboard view with stats, active requests, recent deliverables
+- [x] Team member display
+- [x] Request submission modal
+- [x] Deliverable viewer
+- [x] Toggle between Dashboard and Classic mode
 
 ---
 
-## Phase 3: Collaboration Features ✅ (Complete)
+## Phase QD-2: Background Processing (Complete)
 
-**Goal:** Enable team usage and better project management.
+**Goal:** Enable team deliberation and async request handling.
 
-### 3.1 Project Enhancements
-- [x] Project status tracking (active, on-hold, completed) ✅
-- [x] Project descriptions visible in UI ✅
-- [x] Pin important messages in channels ✅
-- [x] Project-specific employee assignments ✅
+### QD-2.1 Orchestration Engine
+- [x] Quincy orchestration logic (routes requests to appropriate team members)
+- [x] Background job queue for team deliberation
+- [x] Team member consultation workflow
+- [x] Response synthesis from multiple team members
 
-### 3.2 Conversation Organization
-- [x] Search across all conversations ✅
-- [x] Star/bookmark important conversations ✅
-- [x] Conversation tagging ✅
-- [x] Archive old conversations ✅
+### QD-2.2 Progress & Notifications
+- [x] Real-time progress tracking ("Quincy is consulting with Jordan...")
+- [x] Status updates during processing
+- [x] Completion notification
+- [x] Error handling and retry logic
 
-### 3.3 Export & Reporting
-- [x] Export conversation to Markdown ✅
-- [x] Export conversation to PDF ✅
-- [x] Usage statistics dashboard ✅
-- [x] API cost tracking per employee/project ✅
-
----
-
-## Phase 4: Advanced File Support
-
-**Goal:** Handle diverse file types and larger content.
-
-### 4.1 Document Processing
-- [ ] PDF text extraction and analysis
-- [ ] Word document support
-- [ ] Spreadsheet parsing (CSV, Excel)
-- [ ] Image description via vision models
-
-### 4.2 Code Support
-- [ ] Syntax-aware code file handling
-- [ ] GitHub repository import
-- [ ] Code diff display in responses
-- [ ] Run code snippets (sandboxed)
-
-### 4.3 Knowledge Base
-- [ ] Folder-based file organization
-- [ ] Semantic search across files
-- [ ] Auto-chunking large documents
-- [ ] RAG (Retrieval Augmented Generation) integration
+### QD-2.3 Deliberation Transparency
+- [x] Option to view team deliberation (internal messages)
+- [x] Team contribution summary in deliverables
+- [x] "Who contributed" metadata
 
 ---
 
-## Phase 5: Integrations
+## Phase QD-3: Deliverable Excellence
 
-**Goal:** Connect SilentPartner to external tools and services.
+**Goal:** Make deliverables the primary, high-quality output.
 
-### 5.1 Communication
-- [ ] Slack integration (forward messages)
-- [ ] Email integration (send/receive)
-- [ ] Webhook support for notifications
+### QD-3.1 Templates & Formatting
+- [ ] Deliverable templates per type (PRD template, Analysis template, etc.)
+- [ ] Consistent markdown formatting
+- [ ] Section headers and structure
+- [ ] Executive summary generation
 
-### 5.2 Productivity & Knowledge Sources
-- [ ] Google Drive integration (read-only)
-- [ ] Google Docs import & sync
-- [ ] Google Sheets import & analysis
-- [ ] Gmail read-only integration (email context & summaries)
-- [ ] Notion page import
-- [ ] Calendar integration for scheduling context
+### QD-3.2 Export Options
+- [ ] Download as Markdown
+- [ ] Download as PDF
+- [ ] Export to Google Docs
+- [ ] Export to Google Sheets (for roadmaps)
+- [ ] Copy to clipboard
 
-### 5.3 Developer Tools
-- [ ] API access for external apps
-- [ ] Zapier/Make integration
-- [ ] CLI tool for power users
-
----
-
-## Phase 6: Multi-User & Teams
-
-**Goal:** Support organizations with multiple users.
-
-### 6.1 Team Workspaces
-- [ ] Organization/workspace creation
-- [ ] Invite team members via email
-- [ ] Role-based access control (admin, member, viewer)
-- [ ] Shared employees across team
-
-### 6.2 Shared Resources
-- [ ] Shared memory pools
-- [ ] Shared project files
-- [ ] Team-wide instruction templates
-- [ ] Centralized API key management (admin-only)
-
-### 6.3 Audit & Compliance
-- [ ] Activity logs
-- [ ] Data retention policies
-- [ ] Export all user data (GDPR)
-- [ ] SSO integration (SAML, OIDC)
+### QD-3.3 Versioning & Iteration
+- [ ] Request revisions ("Please update section X")
+- [ ] Version history for deliverables
+- [ ] Compare versions
+- [ ] Rollback to previous version
 
 ---
 
-## Phase 7: Real-Time & Performance
+## Phase QD-4: Intelligence & Context
 
-**Goal:** Make the app faster and more responsive.
+**Goal:** Make the team smarter with better context.
 
-### 7.1 Real-Time Updates
-- [ ] WebSocket connection for live updates
-- [ ] Typing indicators
-- [ ] Real-time message sync across tabs
-- [ ] Push notifications (browser)
+### QD-4.1 Web Browsing
+- [ ] Casey (Research Analyst) can browse the web
+- [ ] Product URL analysis
+- [ ] Competitor website browsing
+- [ ] Search integration for research requests
 
-### 7.2 Performance Optimization
-- [ ] Message pagination (load older on scroll)
-- [ ] Virtual scrolling for long conversations
-- [ ] Database query optimization
-- [ ] Redis caching layer
+### QD-4.2 Project Context
+- [ ] Project-scoped requests
+- [ ] Team remembers previous deliverables
+- [ ] Cross-request context ("As we discussed in the roadmap...")
+- [ ] Project knowledge base
 
-### 7.3 Infrastructure
-- [ ] Horizontal scaling support
-- [ ] Background job processing
-- [ ] Rate limiting per user
-- [ ] CDN for static assets
+### QD-4.3 File Context
+- [ ] Attach files to requests
+- [ ] Document analysis for audits
+- [ ] Image analysis for UX reviews
+- [ ] Code analysis for technical reviews
+
+---
+
+## Phase QD-5: UX Polish
+
+**Goal:** Refine the user experience.
+
+### QD-5.1 Chat Improvements (for follow-up conversations)
+- [ ] Large prompts collapse with "Show more"
+- [ ] Full-width text input like ChatGPT
+- [ ] Improved markdown rendering
+- [ ] Better code highlighting
+
+### QD-5.2 Dashboard Enhancements
+- [ ] Request filtering and sorting
+- [ ] Deliverable search
+- [ ] Bulk actions
+- [ ] Keyboard shortcuts
+
+### QD-5.3 Mobile Experience
+- [ ] Responsive dashboard
+- [ ] Mobile-friendly request submission
+- [ ] Push notifications for completed requests
+
+---
+
+## Legacy Phases (From SilentPartner)
+
+These remain available for users who prefer the classic mode:
+
+### Phase 1-3: Complete
+- Error handling, toast notifications
+- Chat improvements (timestamps, edit/delete, markdown)
+- File handling and persistence
+- Mobile responsiveness
+- Model expansion (GPT-4 Turbo, Claude 3.5, etc.)
+- Context management and summarization
+- Role library and templates
+- Project enhancements and collaboration
+- Export to Markdown/PDF
+- Usage statistics
+
+### Phase 4: Advanced File Support (Future)
+- PDF text extraction
+- Word/Excel support
+- GitHub integration
+- RAG integration
+
+### Phase 5: Integrations (Partial)
+- [x] Google Sheets create/update
+- [ ] Slack integration
+- [ ] Email integration
+- [ ] API access
+
+### Phase 6: Multi-User & Teams (Future)
+- Team workspaces
+- Shared resources
+- Audit & compliance
+
+### Phase 7: Performance (Future)
+- WebSocket real-time updates
+- Message pagination
+- Database optimization
 
 ---
 
@@ -267,26 +202,59 @@ To reduce risk and prevent scope creep, Phase 2.3 should be implemented in the f
 
 **Ideas for later evaluation:**
 
-- **Voice Interface**: Voice input/output for conversations
-- **AI Agents**: Employees that can take actions (browse web, run code)
-- **Marketplace**: Share/sell employee configurations
-- **White-Label**: Custom branding for organizations
-- **On-Premise**: Self-hosted deployment option
+- **Voice Interface**: Voice input for request submission
+- **AI Agents**: Team members that can take actions (browse web, run code)
+- **Custom Team Members**: Add/customize team composition
+- **White-Label**: Custom branding ("Your Company's Consulting Team")
+- **Slack/Teams Bot**: Submit requests directly from Slack
 - **Mobile Apps**: Native iOS/Android applications
-- **Offline Mode**: Queue messages when offline
+- **Meeting Integration**: Connect to Zoom/Meet for context
+
+---
+
+## Architecture Notes
+
+### New Models (QuietDesk)
+```
+TeamMember - Pre-instantiated consulting team
+  - owner_id, role, name, title, instructions, model, is_lead
+
+Request - User-submitted requests
+  - owner_id, project_id, title, description, request_type
+  - status (pending, processing, completed, failed)
+  - team_involved, product_url, attachments
+
+Deliverable - Output artifacts
+  - request_id, title, content, deliverable_type
+  - google_sheet_id/url, version, is_draft
+
+RequestMessage - Conversation thread per request
+  - request_id, role, sender_name, content
+  - is_internal (for team deliberation)
+```
+
+### API Endpoints
+- `GET /api/dashboard/` - Dashboard overview
+- `GET /api/dashboard/team` - Get user's team
+- `POST /api/dashboard/requests` - Submit new request
+- `GET /api/dashboard/requests` - List requests
+- `GET /api/dashboard/requests/:id` - Request details
+- `GET /api/dashboard/deliverables` - List deliverables
+- `GET /api/dashboard/deliverables/:id` - Deliverable content
+- `GET /api/dashboard/request-types` - Available request types
 
 ---
 
 ## How to Contribute
 
 When implementing features:
-1. Pick an item from the current phase
+1. Pick an item from the current phase (QD-1 or QD-2)
 2. Create a feature branch
 3. Update this roadmap to mark progress
 4. Reference Architecture.md for technical guidance
 5. Test locally before deploying
 
-**Priority Legend:**
-- Items at the top of each section are higher priority
-- Phases should be completed roughly in order
-- Within a phase, sections can be worked in parallel
+**Priority:**
+- QD phases take priority over legacy phases
+- Focus on delivering value through the new dashboard-first UX
+- Classic mode remains available but is not the focus

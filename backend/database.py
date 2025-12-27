@@ -81,11 +81,11 @@ Communication style:
 - Always present drafts for approval before finalizing
 
 When asked to create a product roadmap or spreadsheet:
-1. Create the Google Sheet immediately with appropriate tabs
-2. Add headers to each tab right away
-3. Populate with initial content based on context (product features, priorities, timelines)
-4. Only ask for clarification if truly necessary - use reasonable defaults
-5. Complete the entire workflow in one response when possible""",
+- ALWAYS use the `create_roadmap` tool - it handles everything automatically
+- Pass the ENTIRE markdown content to the tool - do not manually extract or summarize
+- The tool parses all phases, items, and statuses automatically
+- One tool call creates the complete spreadsheet with all data - no follow-up updates needed
+- Never use create_google_sheet + update_google_sheet for roadmaps""",
         "recommended_integrations": json.dumps(["google-docs", "google-sheets"]),
         "recommended_model": "gpt-4-turbo"
     },
@@ -421,6 +421,7 @@ elif DATABASE_URL.startswith("postgresql://"):
 
 engine = None
 async_session = None
+async_session_factory = None  # For background tasks
 Base = declarative_base()
 
 
@@ -432,11 +433,12 @@ def get_engine():
 
 
 def get_session_maker():
-    global async_session
+    global async_session, async_session_factory
     if async_session is None:
         eng = get_engine()
         if eng:
             async_session = sessionmaker(eng, class_=AsyncSession, expire_on_commit=False)
+            async_session_factory = async_session  # Alias for background tasks
     return async_session
 
 
@@ -690,3 +692,80 @@ async def run_migrations():
             await conn.execute(text(
                 "ALTER TABLE users ADD COLUMN IF NOT EXISTS google_token_expires_at TIMESTAMP"
             ))
+
+            # QuietDesk tables - Phase QD-1
+            # Create team_members table
+            await conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS team_members (
+                    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                    owner_id UUID NOT NULL REFERENCES users(id),
+                    role VARCHAR NOT NULL,
+                    name VARCHAR NOT NULL,
+                    title VARCHAR,
+                    instructions TEXT,
+                    model VARCHAR DEFAULT 'gpt-4-turbo',
+                    is_lead BOOLEAN DEFAULT FALSE,
+                    created_at TIMESTAMP DEFAULT NOW(),
+                    updated_at TIMESTAMP DEFAULT NOW()
+                )
+            """))
+            await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_team_members_owner_id ON team_members(owner_id)"))
+
+            # Create requests table
+            await conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS requests (
+                    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                    owner_id UUID NOT NULL REFERENCES users(id),
+                    project_id UUID REFERENCES projects(id) ON DELETE SET NULL,
+                    title VARCHAR NOT NULL,
+                    description TEXT NOT NULL,
+                    request_type VARCHAR NOT NULL,
+                    status VARCHAR DEFAULT 'pending',
+                    started_at TIMESTAMP,
+                    completed_at TIMESTAMP,
+                    team_involved TEXT,
+                    product_url VARCHAR,
+                    attachments TEXT,
+                    created_at TIMESTAMP DEFAULT NOW(),
+                    updated_at TIMESTAMP DEFAULT NOW()
+                )
+            """))
+            await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_requests_owner_id ON requests(owner_id)"))
+            await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_requests_status ON requests(status)"))
+
+            # Create deliverables table
+            await conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS deliverables (
+                    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                    request_id UUID NOT NULL REFERENCES requests(id) ON DELETE CASCADE,
+                    owner_id UUID NOT NULL REFERENCES users(id),
+                    title VARCHAR NOT NULL,
+                    content TEXT NOT NULL,
+                    deliverable_type VARCHAR NOT NULL,
+                    google_sheet_id VARCHAR,
+                    google_sheet_url VARCHAR,
+                    version INTEGER DEFAULT 1,
+                    is_draft BOOLEAN DEFAULT FALSE,
+                    created_at TIMESTAMP DEFAULT NOW(),
+                    updated_at TIMESTAMP DEFAULT NOW()
+                )
+            """))
+            await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_deliverables_request_id ON deliverables(request_id)"))
+            await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_deliverables_owner_id ON deliverables(owner_id)"))
+
+            # Create request_messages table
+            await conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS request_messages (
+                    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                    request_id UUID NOT NULL REFERENCES requests(id) ON DELETE CASCADE,
+                    owner_id UUID NOT NULL REFERENCES users(id),
+                    role VARCHAR NOT NULL,
+                    sender_name VARCHAR,
+                    content TEXT NOT NULL,
+                    is_internal BOOLEAN DEFAULT FALSE,
+                    team_member_role VARCHAR,
+                    created_at TIMESTAMP DEFAULT NOW()
+                )
+            """))
+            await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_request_messages_request_id ON request_messages(request_id)"))
+            await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_request_messages_owner_id ON request_messages(owner_id)"))

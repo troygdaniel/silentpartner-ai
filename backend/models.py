@@ -206,3 +206,121 @@ class MemorySuggestion(Base):
     status = Column(String, default="pending")  # pending, approved, rejected
     created_at = Column(DateTime, default=datetime.utcnow)
     resolved_at = Column(DateTime, nullable=True)
+
+
+# ============================================================================
+# QuietDesk Models - New consulting firm architecture
+# ============================================================================
+
+class TeamMember(Base):
+    """Pre-instantiated consulting team member for QuietDesk.
+
+    Unlike Employee (user-created), TeamMember represents the fixed
+    consulting team that works behind the scenes.
+    """
+    __tablename__ = "team_members"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    owner_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True)
+    role = Column(String, nullable=False)  # project_manager, product_manager, technical_advisor, etc.
+    name = Column(String, nullable=False)  # Quincy, Jordan, Sam, etc.
+    title = Column(String, nullable=True)  # "Project Manager", "Technical Advisor"
+    instructions = Column(Text, nullable=True)  # System instructions for this team member
+    model = Column(String, default="gpt-4-turbo")  # AI model to use
+    is_lead = Column(Boolean, default=False)  # True for Quincy (user-facing)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    owner = relationship("User")
+
+
+class Request(Base):
+    """A user request submitted to the QuietDesk team.
+
+    Represents a task/question the user wants the consulting team to work on.
+    """
+    __tablename__ = "requests"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    owner_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True)
+    project_id = Column(UUID(as_uuid=True), ForeignKey("projects.id", ondelete="SET NULL"), nullable=True, index=True)
+
+    # Request details
+    title = Column(String, nullable=False)  # Brief title
+    description = Column(Text, nullable=False)  # Full request details
+    request_type = Column(String, nullable=False)  # roadmap, analysis, audit, review, research, custom
+
+    # Processing status
+    status = Column(String, default="pending")  # pending, processing, completed, failed
+    started_at = Column(DateTime, nullable=True)
+    completed_at = Column(DateTime, nullable=True)
+
+    # Team involvement tracking (JSON array of team member roles)
+    team_involved = Column(Text, nullable=True)  # ["product_manager", "technical_advisor"]
+
+    # Optional context
+    product_url = Column(String, nullable=True)  # URL to browse for context
+    attachments = Column(Text, nullable=True)  # JSON array of file references
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    owner = relationship("User")
+    project = relationship("Project")
+    deliverables = relationship("Deliverable", back_populates="request", cascade="all, delete-orphan")
+    messages = relationship("RequestMessage", back_populates="request", cascade="all, delete-orphan")
+
+
+class Deliverable(Base):
+    """Output artifact from a completed request.
+
+    The main product of QuietDesk - consulting reports, roadmaps, analyses, etc.
+    """
+    __tablename__ = "deliverables"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    request_id = Column(UUID(as_uuid=True), ForeignKey("requests.id", ondelete="CASCADE"), nullable=False, index=True)
+    owner_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True)
+
+    # Deliverable content
+    title = Column(String, nullable=False)
+    content = Column(Text, nullable=False)  # Markdown content
+    deliverable_type = Column(String, nullable=False)  # roadmap, analysis, audit, review, research, report
+
+    # Optional exports
+    google_sheet_id = Column(String, nullable=True)  # If exported to Sheets
+    google_sheet_url = Column(String, nullable=True)
+
+    # Metadata
+    version = Column(Integer, default=1)  # For revisions
+    is_draft = Column(Boolean, default=False)
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    request = relationship("Request", back_populates="deliverables")
+    owner = relationship("User")
+
+
+class RequestMessage(Base):
+    """Messages in a request thread - for clarification and follow-up.
+
+    Unlike the main chat, this is secondary to deliverables.
+    """
+    __tablename__ = "request_messages"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    request_id = Column(UUID(as_uuid=True), ForeignKey("requests.id", ondelete="CASCADE"), nullable=False, index=True)
+    owner_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True)
+
+    role = Column(String, nullable=False)  # "user" or "assistant"
+    sender_name = Column(String, nullable=True)  # "Quincy" for assistant messages
+    content = Column(Text, nullable=False)
+
+    # For internal team deliberation (hidden from user by default)
+    is_internal = Column(Boolean, default=False)
+    team_member_role = Column(String, nullable=True)  # Which team member said this
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    request = relationship("Request", back_populates="messages")

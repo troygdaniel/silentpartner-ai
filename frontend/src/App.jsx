@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import Dashboard from './Dashboard'
 
 // ============================================================================
 // THEME - Devin.ai-inspired dark theme with purple/violet accents
@@ -206,7 +207,7 @@ async function executeToolCalls(content, authHeaders, conversationHistory = []) 
 
   // Fallback: also detect plain JSON tool calls without code fence
   if (matches.length === 0) {
-    const plainJsonRegex = /\{\s*"tool"\s*:\s*"(create_google_sheet|update_google_sheet|read_google_sheet)"[^}]+\}/g
+    const plainJsonRegex = /\{\s*"tool"\s*:\s*"(create_google_sheet|update_google_sheet|read_google_sheet|create_roadmap)"[^}]+\}/g
     const plainMatches = [...content.matchAll(plainJsonRegex)]
     if (plainMatches.length > 0) {
       // Convert plain matches to look like code fence matches
@@ -378,6 +379,27 @@ async function executeToolCalls(content, authHeaders, conversationHistory = []) 
           }).then(r => r.json())
           break
         }
+        case 'create_roadmap': {
+          // New atomic roadmap creation - parses markdown and creates complete spreadsheet
+          endpoint = '/api/google/sheets/create-roadmap'
+          result = await fetch(endpoint, {
+            method: 'POST',
+            headers: authHeaders,
+            body: JSON.stringify({
+              title: params.title,
+              content: params.content
+            })
+          }).then(r => r.json())
+          // Store the created spreadsheet ID and sheet names for subsequent calls
+          if (result && result.spreadsheet_id) {
+            lastCreatedSpreadsheetId = result.spreadsheet_id
+          }
+          if (result && result.sheets && result.sheets.length > 0) {
+            knownSheetNames = result.sheets
+            console.log('Sheet names from roadmap create response:', knownSheetNames)
+          }
+          break
+        }
         default:
           result = { error: `Unknown tool: ${tool}` }
       }
@@ -395,6 +417,10 @@ async function executeToolCalls(content, authHeaders, conversationHistory = []) 
           resultText = `\n\n*Sheet updated: ${result.updated_cells || 0} cells modified*\n`
         } else if (tool === 'read_google_sheet') {
           resultText = `\n\n**Sheet data:**\n\`\`\`\n${JSON.stringify(result.values || [], null, 2)}\n\`\`\`\n`
+        } else if (tool === 'create_roadmap' && result.url) {
+          // Format roadmap creation result with summary
+          const phaseSummary = result.phases ? result.phases.map(p => `  - ${p.name}: ${p.item_count} items`).join('\n') : ''
+          resultText = `\n\n**Roadmap Spreadsheet Created:** [${result.title}](${result.url})\n\n**Summary:**\n- Total items: ${result.total_items}\n- Sheets: ${result.sheets?.join(', ')}\n\n**Phases:**\n${phaseSummary}\n\n*(spreadsheet_id: ${result.spreadsheet_id})*\n`
         }
         modifiedContent = modifiedContent.replace(match[0], resultText)
       } else if (result?.error || result?.detail) {
@@ -747,6 +773,7 @@ function App() {
   // Navigation
   const [activeChannel, setActiveChannel] = useState(null) // { type: 'project' | 'dm', id, name }
   const [showSettings, setShowSettings] = useState(false)
+  const [showDashboard, setShowDashboard] = useState(false) // QuietDesk dashboard view
 
   // Chat state
   const [messages, setMessages] = useState([])
@@ -2416,6 +2443,16 @@ function App() {
 
   const getEmployeeName = (id) => employees.find(e => e.id === id)?.name || 'Unknown'
 
+  // Show QuietDesk Dashboard if enabled
+  if (showDashboard) {
+    return (
+      <Dashboard
+        token={localStorage.getItem('token')}
+        onBack={() => setShowDashboard(false)}
+      />
+    )
+  }
+
   return (
     <div style={{ display: 'flex', fontFamily: "'Inter', system-ui, sans-serif", height: '100vh', overflow: 'hidden', background: T.bg.primary }}>
       {/* Mobile sidebar toggle */}
@@ -2447,7 +2484,25 @@ function App() {
       {/* Sidebar */}
       <div style={styles.sidebar}>
         {/* Fixed Header */}
-        <div style={styles.sidebarHeader} onClick={() => { setActiveChannel(null); setShowSettings(false); setMessages([]); setShowSearchResults(false) }}>QuietDesk</div>
+        <div style={{ ...styles.sidebarHeader, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span onClick={() => { setActiveChannel(null); setShowSettings(false); setMessages([]); setShowSearchResults(false) }} style={{ cursor: 'pointer' }}>QuietDesk</span>
+          <button
+            onClick={() => setShowDashboard(true)}
+            title="Open Dashboard"
+            style={{
+              background: T.accent.primaryMuted,
+              border: 'none',
+              borderRadius: T.radius.sm,
+              padding: '4px 8px',
+              color: T.accent.primary,
+              cursor: 'pointer',
+              fontSize: 11,
+              fontWeight: 500
+            }}
+          >
+            Dashboard
+          </button>
+        </div>
 
         {/* Scrollable Content Area */}
         <div style={{ flex: 1, overflow: 'auto', display: 'flex', flexDirection: 'column' }}>
