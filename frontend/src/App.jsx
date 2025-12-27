@@ -223,21 +223,61 @@ async function executeToolCalls(content, authHeaders, conversationHistory = []) 
   // This is needed because the AI outputs all tool calls at once, using placeholders for IDs
   let lastCreatedSpreadsheetId = null
 
-  // Scan conversation history for previously created spreadsheet IDs
+  // Track sheet names from conversation history for range fixing
+  let knownSheetNames = []
+
+  // Scan conversation history for previously created spreadsheet IDs and sheet names
   // This handles the case where sheet was created in an earlier message
   if (conversationHistory && conversationHistory.length > 0) {
     for (const msg of conversationHistory) {
       if (msg.content) {
-        // Look for pattern: (spreadsheet_id: XXXXX)
+        // Look for pattern: (spreadsheet_id: XXXXX, sheets: SheetName1, SheetName2)
         const idMatch = msg.content.match(/\(spreadsheet_id:\s*([a-zA-Z0-9_-]+)/);
         if (idMatch && idMatch[1] && idMatch[1].length >= 30) {
           lastCreatedSpreadsheetId = idMatch[1]
+        }
+        // Look for sheet names pattern: sheets: Name1, Name2, Name3
+        const sheetsMatch = msg.content.match(/sheets:\s*([^)]+)\)/);
+        if (sheetsMatch && sheetsMatch[1]) {
+          knownSheetNames = sheetsMatch[1].split(',').map(s => s.trim())
         }
       }
     }
     if (lastCreatedSpreadsheetId) {
       console.log('Found spreadsheet_id from conversation history:', lastCreatedSpreadsheetId)
     }
+    if (knownSheetNames.length > 0) {
+      console.log('Found sheet names from conversation history:', knownSheetNames)
+    }
+  }
+
+  // Helper function to fix range by matching sheet name to known sheets
+  const fixRange = (range) => {
+    if (knownSheetNames.length === 0) return range
+
+    // Extract sheet name from range (before the !)
+    const rangeMatch = range.match(/^'?([^'!]+)'?!(.+)$/)
+    if (!rangeMatch) return range
+
+    const usedSheetName = rangeMatch[1]
+    const cellRange = rangeMatch[2]
+
+    // Check if the sheet name matches exactly (case-insensitive)
+    const exactMatch = knownSheetNames.find(s => s.toLowerCase() === usedSheetName.toLowerCase())
+    if (exactMatch) {
+      // Return with proper quoting if has spaces
+      return exactMatch.includes(' ') ? `'${exactMatch}'!${cellRange}` : `${exactMatch}!${cellRange}`
+    }
+
+    // Try to find a close match (e.g., "Phase3" -> "Phase 3", "FutureConsiderations" -> "Future Considerations")
+    const normalizedUsed = usedSheetName.replace(/\s+/g, '').toLowerCase()
+    const closeMatch = knownSheetNames.find(s => s.replace(/\s+/g, '').toLowerCase() === normalizedUsed)
+    if (closeMatch) {
+      console.log(`Fixed sheet name: "${usedSheetName}" -> "${closeMatch}"`)
+      return closeMatch.includes(' ') ? `'${closeMatch}'!${cellRange}` : `${closeMatch}!${cellRange}`
+    }
+
+    return range
   }
 
   for (const match of matches) {
@@ -256,9 +296,13 @@ async function executeToolCalls(content, authHeaders, conversationHistory = []) 
             headers: authHeaders,
             body: JSON.stringify({ title: params.title, sheets: params.sheets })
           }).then(r => r.json())
-          // Store the created spreadsheet ID for subsequent calls
+          // Store the created spreadsheet ID and sheet names for subsequent calls
           if (result && result.spreadsheet_id) {
             lastCreatedSpreadsheetId = result.spreadsheet_id
+          }
+          if (result && result.sheets && result.sheets.length > 0) {
+            knownSheetNames = result.sheets
+            console.log('Sheet names from create response:', knownSheetNames)
           }
           break
         case 'update_google_sheet': {
@@ -275,12 +319,14 @@ async function executeToolCalls(content, authHeaders, conversationHistory = []) 
             spreadsheetId = lastCreatedSpreadsheetId
             console.log('Substituted spreadsheet_id:', spreadsheetId)
           }
+          // Fix range if sheet name doesn't match known sheets
+          const fixedRange = fixRange(params.range)
           result = await fetch(endpoint, {
             method: 'POST',
             headers: authHeaders,
             body: JSON.stringify({
               spreadsheet_id: spreadsheetId,
-              range: params.range,
+              range: fixedRange,
               values: params.values
             })
           }).then(r => r.json())
@@ -298,12 +344,14 @@ async function executeToolCalls(content, authHeaders, conversationHistory = []) 
                spreadsheetId === 'new_spreadsheet_id')) {
             spreadsheetId = lastCreatedSpreadsheetId
           }
+          // Fix range if sheet name doesn't match known sheets
+          const fixedReadRange = fixRange(params.range)
           result = await fetch(endpoint, {
             method: 'POST',
             headers: authHeaders,
             body: JSON.stringify({
               spreadsheet_id: spreadsheetId,
-              range: params.range
+              range: fixedReadRange
             })
           }).then(r => r.json())
           break
