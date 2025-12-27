@@ -19,6 +19,7 @@ import json
 from auth import require_auth
 from database import get_db
 from models import User, TeamMember, Request, Deliverable, RequestMessage, Project
+from routes_auth import create_quietdesk_team
 
 router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
 
@@ -123,6 +124,17 @@ async def get_dashboard(
         .order_by(desc(TeamMember.is_lead), TeamMember.name)
     )
     team_members = team_result.scalars().all()
+
+    # Auto-create team for existing users who don't have one
+    if len(team_members) == 0:
+        await create_quietdesk_team(user_id, db)
+        # Re-fetch team members
+        team_result = await db.execute(
+            select(TeamMember)
+            .where(TeamMember.owner_id == user_id)
+            .order_by(desc(TeamMember.is_lead), TeamMember.name)
+        )
+        team_members = team_result.scalars().all()
 
     # Get active requests (pending or processing)
     requests_result = await db.execute(
@@ -508,3 +520,94 @@ async def get_request_types():
             "team_involved": []
         }
     ]
+
+
+# ============================================================================
+# Request Management Endpoints
+# ============================================================================
+
+@router.delete("/requests/{request_id}")
+async def delete_request(
+    request_id: str,
+    auth_user: dict = Depends(require_auth),
+    db: AsyncSession = Depends(get_db)
+):
+    """Delete a request (typically used for failed requests)."""
+    user_id = auth_user["sub"]
+
+    result = await db.execute(
+        select(Request)
+        .where(Request.id == request_id)
+        .where(Request.owner_id == user_id)
+    )
+    req = result.scalar_one_or_none()
+
+    if not req:
+        raise HTTPException(status_code=404, detail="Request not found")
+
+    # Delete associated messages and deliverables (cascade should handle this)
+    await db.delete(req)
+    await db.commit()
+
+    return {"status": "deleted", "request_id": request_id}
+
+
+@router.post("/requests/{request_id}/retry")
+async def retry_request(
+    request_id: str,
+    auth_user: dict = Depends(require_auth),
+    db: AsyncSession = Depends(get_db)
+):
+    """Reset a failed request to pending so it can be reprocessed."""
+    user_id = auth_user["sub"]
+
+    result = await db.execute(
+        select(Request)
+        .where(Request.id == request_id)
+        .where(Request.owner_id == user_id)
+    )
+    req = result.scalar_one_or_none()
+
+    if not req:
+        raise HTTPException(status_code=404, detail="Request not found")
+
+    if req.status != "failed":
+        raise HTTPException(status_code=400, detail="Only failed requests can be retried")
+
+    # Reset to pending
+    req.status = "pending"
+    req.started_at = None
+    req.completed_at = None
+    req.team_involved = None
+    await db.commit()
+
+    return {"status": "pending", "request_id": request_id, "message": "Request reset. Trigger processing to retry."}
+
+
+@router.post("/reset")
+async def reset_dashboard(
+    auth_user: dict = Depends(require_auth),
+    db: AsyncSession = Depends(get_db)
+):
+    """Reset all QuietDesk data for the user (for testing/fresh start)."""
+    user_id = auth_user["sub"]
+
+    # Delete in order due to foreign keys
+    await db.execute(
+        RequestMessage.__table__.delete().where(RequestMessage.owner_id == user_id)
+    )
+    await db.execute(
+        Deliverable.__table__.delete().where(Deliverable.owner_id == user_id)
+    )
+    await db.execute(
+        Request.__table__.delete().where(Request.owner_id == user_id)
+    )
+    await db.execute(
+        TeamMember.__table__.delete().where(TeamMember.owner_id == user_id)
+    )
+    await db.commit()
+
+    # Recreate team
+    await create_quietdesk_team(user_id, db)
+
+    return {"status": "reset", "message": "Dashboard reset. Fresh team created."}
