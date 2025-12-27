@@ -162,12 +162,16 @@ async def update_sheet(
 
     access_token = await get_valid_google_token(user, db)
 
-    # URL-encode the range to handle special characters like !
-    encoded_range = quote(request.range, safe='')
+    # Log for debugging
+    import logging
+    logging.info(f"Updating sheet {request.spreadsheet_id}, range: {request.range}")
 
     async with httpx.AsyncClient() as client:
+        # Use the range directly - httpx will handle encoding
+        url = f"{SHEETS_API_BASE}/{request.spreadsheet_id}/values/{request.range}"
+        logging.info(f"Request URL: {url}")
         response = await client.put(
-            f"{SHEETS_API_BASE}/{request.spreadsheet_id}/values/{encoded_range}",
+            url,
             headers={
                 "Authorization": f"Bearer {access_token}",
                 "Content-Type": "application/json"
@@ -178,6 +182,8 @@ async def update_sheet(
 
         if response.status_code != 200:
             error_detail = response.json() if response.headers.get("content-type", "").startswith("application/json") else response.text
+            logging.error(f"Google Sheets API error: {response.status_code} - {error_detail}")
+            logging.error(f"Request was: PUT {url}")
             raise HTTPException(
                 status_code=response.status_code,
                 detail=f"Failed to update Google Sheet: {error_detail}"
