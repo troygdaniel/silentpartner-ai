@@ -128,10 +128,19 @@ async def create_sheet(
         spreadsheet_id = data["spreadsheetId"]
         spreadsheet_url = data["spreadsheetUrl"]
 
+        # Extract actual sheet names from response
+        sheet_names = [
+            s.get("properties", {}).get("title", "Sheet1")
+            for s in data.get("sheets", [])
+        ]
+        if not sheet_names:
+            sheet_names = ["Sheet1"]
+
         return {
             "spreadsheet_id": spreadsheet_id,
             "url": spreadsheet_url,
-            "title": request.title
+            "title": request.title,
+            "sheets": sheet_names
         }
 
 

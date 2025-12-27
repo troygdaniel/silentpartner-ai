@@ -268,8 +268,9 @@ async function executeToolCalls(content, authHeaders) {
       if (result && !result.error && !result.detail) {
         let resultText = ''
         if (tool === 'create_google_sheet' && result.url) {
-          // Include spreadsheet_id so AI can reference it for updates
-          resultText = `\n\n**Google Sheet created:** [${params.title}](${result.url})\n*(spreadsheet_id: ${result.spreadsheet_id})*\n`
+          // Include spreadsheet_id and sheet names so AI can reference them for updates
+          const sheetsInfo = result.sheets ? `, sheets: ${result.sheets.join(', ')}` : ''
+          resultText = `\n\n**Google Sheet created:** [${params.title}](${result.url})\n*(spreadsheet_id: ${result.spreadsheet_id}${sheetsInfo})*\n`
         } else if (tool === 'update_google_sheet') {
           resultText = `\n\n*Sheet updated: ${result.updated_cells || 0} cells modified*\n`
         } else if (tool === 'read_google_sheet') {
