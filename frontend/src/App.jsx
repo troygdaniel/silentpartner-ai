@@ -773,7 +773,7 @@ function App() {
   // Navigation
   const [activeChannel, setActiveChannel] = useState(null) // { type: 'project' | 'dm', id, name }
   const [showSettings, setShowSettings] = useState(false)
-  const [showDashboard, setShowDashboard] = useState(false) // QuietDesk dashboard view
+  const [showDashboard, setShowDashboard] = useState(true) // QuietDesk dashboard view - default to Dashboard mode
 
   // Chat state
   const [messages, setMessages] = useState([])
