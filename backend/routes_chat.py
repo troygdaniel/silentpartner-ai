@@ -226,13 +226,62 @@ def estimate_tokens(text: str) -> int:
     return len(text) // 4
 
 
-def summarize_messages_for_context(messages: List[dict], max_tokens: int = 8000) -> List[dict]:
+def get_model_context_limit(model: str) -> int:
+    """Get the context limit for a given model."""
+    context_limits = {
+        "gpt-4": 8192,
+        "gpt-4-turbo": 128000,
+        "gpt-4o": 128000,
+        "gpt-4o-mini": 128000,
+        "gpt-3.5-turbo": 16385,
+        "claude-3-5-sonnet-latest": 200000,
+        "claude-3-5-haiku-latest": 200000,
+        "claude-3-opus-latest": 200000,
+    }
+    # Default to 8k for unknown models
+    return context_limits.get(model, 8192)
+
+
+def extract_important_artifacts(messages: List[dict]) -> str:
+    """Extract important artifacts like spreadsheet IDs, URLs, etc. from messages."""
+    import re
+    artifacts = []
+
+    for m in messages:
+        content = m.get("content", "")
+
+        # Extract spreadsheet IDs
+        spreadsheet_matches = re.findall(r'\(spreadsheet_id:\s*([a-zA-Z0-9_-]+)', content)
+        for sid in spreadsheet_matches:
+            artifacts.append(f"- Google Sheet ID: {sid}")
+
+        # Extract sheet names
+        sheets_matches = re.findall(r'sheets:\s*([^)]+)\)', content)
+        for sheets in sheets_matches:
+            artifacts.append(f"- Sheet tabs: {sheets.strip()}")
+
+        # Extract URLs
+        url_matches = re.findall(r'https://docs\.google\.com/spreadsheets/d/[^\s\)]+', content)
+        for url in url_matches:
+            artifacts.append(f"- Spreadsheet URL: {url}")
+
+    # Deduplicate
+    artifacts = list(dict.fromkeys(artifacts))
+    return "\n".join(artifacts) if artifacts else ""
+
+
+def summarize_messages_for_context(messages: List[dict], max_tokens: int = 8000, model: str = None) -> List[dict]:
     """
     Summarize older messages when conversation gets too long.
     Keeps recent messages intact and summarizes older ones.
+    Preserves important artifacts like spreadsheet IDs.
     """
     if not messages:
         return messages
+
+    # Use model-specific context limit if provided
+    if model:
+        max_tokens = int(get_model_context_limit(model) * 0.7)  # Use 70% to leave room for response
 
     # Calculate total tokens
     total_tokens = sum(estimate_tokens(m.get("content", "")) for m in messages)
@@ -242,26 +291,34 @@ def summarize_messages_for_context(messages: List[dict], max_tokens: int = 8000)
         return messages
 
     # Keep the last N messages (most recent context)
-    keep_recent = 10  # Keep last 10 messages intact
+    keep_recent = 6  # Keep last 6 messages intact for continuity
     if len(messages) <= keep_recent:
         return messages
 
     older_messages = messages[:-keep_recent]
     recent_messages = messages[-keep_recent:]
 
-    # Create a summary of older messages
+    # Extract important artifacts that must be preserved
+    artifacts = extract_important_artifacts(older_messages)
+
+    # Create a concise summary of older messages
     summary_parts = []
-    for m in older_messages:
+    for m in older_messages[-10:]:  # Only summarize last 10 older messages
         role = m.get("role", "unknown")
         content = m.get("content", "")
-        # Truncate very long messages in summary
-        if len(content) > 200:
-            content = content[:200] + "..."
+        # Get key points only - first 150 chars
+        if len(content) > 150:
+            content = content[:150] + "..."
         summary_parts.append(f"[{role}]: {content}")
 
-    summary_text = "## Summary of Earlier Conversation:\n" + "\n".join(summary_parts)
+    summary_text = "## Earlier Conversation Summary\n"
+    summary_text += "The conversation started earlier. Key points:\n"
+    summary_text += "\n".join(summary_parts[-5:])  # Only keep last 5 summary points
 
-    # Return summary as first message followed by recent messages
+    if artifacts:
+        summary_text += "\n\n## Important Context (preserve these):\n" + artifacts
+
+    # Return summary as system context followed by recent messages
     summarized_messages = [{"role": "user", "content": summary_text}] + recent_messages
 
     return summarized_messages
@@ -402,7 +459,7 @@ async def chat(
 
     # Build messages for API and apply summarization for long conversations
     raw_messages = [{"role": m.role, "content": m.content} for m in request.messages]
-    api_messages = summarize_messages_for_context(raw_messages)
+    api_messages = summarize_messages_for_context(raw_messages, model=model)
 
     # Get project details if applicable
     project_id = UUID(request.project_id) if request.project_id else None
