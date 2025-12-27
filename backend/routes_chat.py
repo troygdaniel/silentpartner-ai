@@ -116,13 +116,14 @@ Creates a new spreadsheet in the user's Google Drive. Returns the spreadsheet_id
 ### Update Google Sheet
 Writes data to cells in an existing spreadsheet. The `values` parameter is a 2D array where each inner array is a row.
 
-**CRITICAL for sheet tab names in ranges**:
-- If a sheet name contains spaces, you MUST wrap it in single quotes: `'Phase 1'!A1:D5`
-- Use the EXACT sheet names from the create response - do not modify them
-- Example: If sheets were created as ["Phase 1", "Phase 2"], use `'Phase 1'!A1:D5` NOT `Phase1!A1:D5`
+**CRITICAL for ranges**:
+- For sheet names with spaces, wrap in single quotes: `'Phase 1'!A1`
+- Use ONLY the starting cell (e.g., `A1` or `'Phase 1'!A1`), NOT a full range like `A1:D5`
+- The API will auto-expand based on your data size
+- Use the EXACT sheet names from the create response
 
 ```tool_call
-{"tool": "update_google_sheet", "spreadsheet_id": "THE_ID", "range": "'Phase 1'!A1:D5", "values": [["Col1", "Col2"], ["Row1", "Val"]]}
+{"tool": "update_google_sheet", "spreadsheet_id": "THE_ID", "range": "'Phase 1'!A1", "values": [["Col1", "Col2", "Col3"], ["Row1", "Val1", "Val2"], ["Row2", "Val3", "Val4"]]}
 ```
 
 ### Read Google Sheet
