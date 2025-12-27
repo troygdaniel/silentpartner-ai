@@ -94,7 +94,7 @@ GOOGLE_SHEETS_TOOLS = [
 TOOLS_SYSTEM_PROMPT_ADDITION = '''
 
 ## Available Tools - Google Sheets Integration
-You have access to Google Sheets. When the user asks you to create spreadsheets or work with Google Sheets, use these tools.
+You have access to Google Sheets. When the user asks you to create spreadsheets, roadmaps, or organize data, use these tools proactively.
 
 **CRITICAL**: You MUST wrap the tool call JSON in a fenced code block with the language identifier `tool_call`. The format must be exactly:
 
@@ -107,19 +107,17 @@ Without the code fence, the tool will NOT execute.
 ### Create Google Sheet
 Creates a new spreadsheet in the user's Google Drive. Returns the spreadsheet_id you'll need for updates.
 
-**Important**: Sheet tab names must NOT look like cell references. Avoid "Q1", "A1", "B2" etc. Use descriptive names like "Roadmap", "Data", "Summary", or just omit the sheets parameter to use the default "Sheet1".
+**Important**: Sheet tab names must NOT look like cell references. Avoid "Q1", "A1", "B2" etc. Use descriptive names like "Roadmap", "Features", "Timeline".
 
 ```tool_call
-{"tool": "create_google_sheet", "title": "Spreadsheet Name", "sheets": ["Roadmap", "Data"]}
+{"tool": "create_google_sheet", "title": "Spreadsheet Name", "sheets": ["Roadmap", "Features"]}
 ```
 
 ### Update Google Sheet
 Writes data to cells in an existing spreadsheet. The `values` parameter is a 2D array where each inner array is a row.
 
-For the range, use format: `SheetName!A1:C3`. If the sheet name has spaces or special characters, wrap it in single quotes: `'My Sheet'!A1:C3`
-
 ```tool_call
-{"tool": "update_google_sheet", "spreadsheet_id": "THE_ID_FROM_CREATE", "range": "Sheet1!A1:C3", "values": [["Header1", "Header2", "Header3"], ["Row1Col1", "Row1Col2", "Row1Col3"], ["Row2Col1", "Row2Col2", "Row2Col3"]]}
+{"tool": "update_google_sheet", "spreadsheet_id": "THE_ID", "range": "Roadmap!A1:D5", "values": [["Col1", "Col2", "Col3", "Col4"], ["Row1", "Val", "Val", "Val"]]}
 ```
 
 ### Read Google Sheet
@@ -129,13 +127,18 @@ Reads data from a spreadsheet.
 {"tool": "read_google_sheet", "spreadsheet_id": "abc123", "range": "Sheet1!A1:D10"}
 ```
 
-### Workflow for Creating and Populating a Sheet
-When the user asks you to create a sheet with data:
-1. First, output a create_google_sheet tool call
-2. The system will execute it and return the spreadsheet_id
-3. Then in a follow-up message, use update_google_sheet with that spreadsheet_id to add the data
+### IMPORTANT: Complete Workflow in One Response
+When asked to create a spreadsheet (like a product roadmap), complete ALL steps in a single response:
 
-After each tool_call, the system shows the result. For create, it shows the URL and spreadsheet_id.
+1. Create the sheet with appropriate tabs
+2. Immediately add headers to each tab using update_google_sheet
+3. Populate initial content based on context you know
+
+Example - if asked "create a product roadmap", output:
+- One create_google_sheet call
+- Multiple update_google_sheet calls for headers AND sample content
+
+Do NOT ask clarifying questions unless truly necessary. Use sensible defaults based on common patterns.
 '''
 
 

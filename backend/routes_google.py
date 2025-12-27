@@ -5,7 +5,6 @@ Provides endpoints for AI employees to create and manage Google Sheets.
 """
 from datetime import datetime, timedelta
 from typing import Optional, List
-from urllib.parse import quote
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -162,14 +161,8 @@ async def update_sheet(
 
     access_token = await get_valid_google_token(user, db)
 
-    # Log for debugging
-    import logging
-    logging.info(f"Updating sheet {request.spreadsheet_id}, range: {request.range}")
-
     async with httpx.AsyncClient() as client:
-        # Use the range directly - httpx will handle encoding
         url = f"{SHEETS_API_BASE}/{request.spreadsheet_id}/values/{request.range}"
-        logging.info(f"Request URL: {url}")
         response = await client.put(
             url,
             headers={
@@ -182,8 +175,6 @@ async def update_sheet(
 
         if response.status_code != 200:
             error_detail = response.json() if response.headers.get("content-type", "").startswith("application/json") else response.text
-            logging.error(f"Google Sheets API error: {response.status_code} - {error_detail}")
-            logging.error(f"Request was: PUT {url}")
             raise HTTPException(
                 status_code=response.status_code,
                 detail=f"Failed to update Google Sheet: {error_detail}"
@@ -212,11 +203,9 @@ async def append_sheet(
 
     access_token = await get_valid_google_token(user, db)
 
-    encoded_range = quote(request.range, safe='')
-
     async with httpx.AsyncClient() as client:
         response = await client.post(
-            f"{SHEETS_API_BASE}/{request.spreadsheet_id}/values/{encoded_range}:append",
+            f"{SHEETS_API_BASE}/{request.spreadsheet_id}/values/{request.range}:append",
             headers={
                 "Authorization": f"Bearer {access_token}",
                 "Content-Type": "application/json"
@@ -258,11 +247,9 @@ async def read_sheet(
 
     access_token = await get_valid_google_token(user, db)
 
-    encoded_range = quote(request.range, safe='')
-
     async with httpx.AsyncClient() as client:
         response = await client.get(
-            f"{SHEETS_API_BASE}/{request.spreadsheet_id}/values/{encoded_range}",
+            f"{SHEETS_API_BASE}/{request.spreadsheet_id}/values/{request.range}",
             headers={"Authorization": f"Bearer {access_token}"}
         )
 
