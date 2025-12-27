@@ -5,6 +5,7 @@ Provides endpoints for AI employees to create and manage Google Sheets.
 """
 from datetime import datetime, timedelta
 from typing import Optional, List
+from urllib.parse import quote
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -161,9 +162,12 @@ async def update_sheet(
 
     access_token = await get_valid_google_token(user, db)
 
+    # URL-encode the range to handle special characters like !
+    encoded_range = quote(request.range, safe='')
+
     async with httpx.AsyncClient() as client:
         response = await client.put(
-            f"{SHEETS_API_BASE}/{request.spreadsheet_id}/values/{request.range}",
+            f"{SHEETS_API_BASE}/{request.spreadsheet_id}/values/{encoded_range}",
             headers={
                 "Authorization": f"Bearer {access_token}",
                 "Content-Type": "application/json"
@@ -202,9 +206,11 @@ async def append_sheet(
 
     access_token = await get_valid_google_token(user, db)
 
+    encoded_range = quote(request.range, safe='')
+
     async with httpx.AsyncClient() as client:
         response = await client.post(
-            f"{SHEETS_API_BASE}/{request.spreadsheet_id}/values/{request.range}:append",
+            f"{SHEETS_API_BASE}/{request.spreadsheet_id}/values/{encoded_range}:append",
             headers={
                 "Authorization": f"Bearer {access_token}",
                 "Content-Type": "application/json"
@@ -246,9 +252,11 @@ async def read_sheet(
 
     access_token = await get_valid_google_token(user, db)
 
+    encoded_range = quote(request.range, safe='')
+
     async with httpx.AsyncClient() as client:
         response = await client.get(
-            f"{SHEETS_API_BASE}/{request.spreadsheet_id}/values/{request.range}",
+            f"{SHEETS_API_BASE}/{request.spreadsheet_id}/values/{encoded_range}",
             headers={"Authorization": f"Bearer {access_token}"}
         )
 
