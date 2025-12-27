@@ -277,6 +277,28 @@ async function executeToolCalls(content, authHeaders, conversationHistory = []) 
       return closeMatch.includes(' ') ? `'${closeMatch}'!${cellRange}` : `${closeMatch}!${cellRange}`
     }
 
+    // Try partial match - if usedSheetName is contained in any known sheet name
+    // e.g., "Overview" matches "Roadmap Overview", "Future" matches "Future Considerations"
+    const partialMatch = knownSheetNames.find(s =>
+      s.toLowerCase().includes(usedSheetName.toLowerCase()) ||
+      usedSheetName.toLowerCase().includes(s.toLowerCase())
+    )
+    if (partialMatch) {
+      console.log(`Fixed sheet name (partial): "${usedSheetName}" -> "${partialMatch}"`)
+      return partialMatch.includes(' ') ? `'${partialMatch}'!${cellRange}` : `${partialMatch}!${cellRange}`
+    }
+
+    // Last resort: if sheet name starts with same word, match it
+    // e.g., "Phase1" could match "Phase 1" or "Phase One"
+    const firstWord = usedSheetName.split(/[\s\d]/)[0].toLowerCase()
+    if (firstWord.length > 2) {
+      const wordMatch = knownSheetNames.find(s => s.toLowerCase().startsWith(firstWord))
+      if (wordMatch) {
+        console.log(`Fixed sheet name (word): "${usedSheetName}" -> "${wordMatch}"`)
+        return wordMatch.includes(' ') ? `'${wordMatch}'!${cellRange}` : `${wordMatch}!${cellRange}`
+      }
+    }
+
     return range
   }
 

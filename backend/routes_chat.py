@@ -105,46 +105,49 @@ You have access to Google Sheets. When the user asks you to create spreadsheets,
 Without the code fence, the tool will NOT execute.
 
 ### Create Google Sheet
-Creates a new spreadsheet in the user's Google Drive. Returns the spreadsheet_id you'll need for updates.
+Creates a new spreadsheet in the user's Google Drive. Returns the spreadsheet_id and sheet names you'll need for updates.
 
-**Important**: Sheet tab names must NOT look like cell references. Avoid "Q1", "A1", "B2" etc. Use descriptive names like "Roadmap", "Features", "Timeline".
+**Important**: Use simple sheet tab names WITHOUT spaces. Avoid names that look like cell references (Q1, A1, B2).
 
 ```tool_call
-{"tool": "create_google_sheet", "title": "Spreadsheet Name", "sheets": ["Roadmap", "Features"]}
+{"tool": "create_google_sheet", "title": "Spreadsheet Name", "sheets": ["Overview", "Phase1", "Phase2", "Future"]}
 ```
 
 ### Update Google Sheet
 Writes data to cells in an existing spreadsheet. The `values` parameter is a 2D array where each inner array is a row.
 
-**CRITICAL for ranges**:
-- For sheet names with spaces, wrap in single quotes: `'Phase 1'!A1`
-- Use ONLY the starting cell (e.g., `A1` or `'Phase 1'!A1`), NOT a full range like `A1:D5`
-- The API will auto-expand based on your data size
-- Use the EXACT sheet names from the create response
+**CRITICAL**:
+- Use ONLY the starting cell (e.g., `Overview!A1`), NOT a full range - the API auto-expands
+- Use the EXACT sheet names you specified in the create call
+- If you created ["Overview", "Phase1"], use `Overview!A1` and `Phase1!A1`
 
 ```tool_call
-{"tool": "update_google_sheet", "spreadsheet_id": "THE_ID", "range": "'Phase 1'!A1", "values": [["Col1", "Col2", "Col3"], ["Row1", "Val1", "Val2"], ["Row2", "Val3", "Val4"]]}
+{"tool": "update_google_sheet", "spreadsheet_id": "THE_ID", "range": "Overview!A1", "values": [["Col1", "Col2"], ["Row1", "Val1"]]}
 ```
 
 ### Read Google Sheet
 Reads data from a spreadsheet.
 
 ```tool_call
-{"tool": "read_google_sheet", "spreadsheet_id": "abc123", "range": "'Sheet 1'!A1:D10"}
+{"tool": "read_google_sheet", "spreadsheet_id": "abc123", "range": "Sheet1!A1:D10"}
 ```
 
-### IMPORTANT: Complete Workflow in One Response
-When asked to create a spreadsheet (like a product roadmap), complete ALL steps in a single response:
+### IMPORTANT: Complete Workflow
+When creating a spreadsheet:
+1. Create with simple tab names: ["Overview", "Phase1", "Phase2", "Future"]
+2. Immediately update each tab with headers using the SAME names you created
+3. Add content to each tab
 
-1. Create the sheet with appropriate tabs (use simple names without spaces if possible, like "Phase1" not "Phase 1")
-2. Immediately add headers to each tab using update_google_sheet
-3. Populate initial content based on context you know
+Example workflow:
+```tool_call
+{"tool": "create_google_sheet", "title": "Product Roadmap", "sheets": ["Overview", "Phase1", "Phase2"]}
+```
+Then update using the exact same names:
+```tool_call
+{"tool": "update_google_sheet", "spreadsheet_id": "...", "range": "Overview!A1", "values": [["Phase", "Status", "Priority"]]}
+```
 
-Example - if asked "create a product roadmap", output:
-- One create_google_sheet call with tabs like ["Overview", "Phase1", "Phase2", "Future"]
-- Multiple update_google_sheet calls for headers AND sample content
-
-Do NOT ask clarifying questions unless truly necessary. Use sensible defaults based on common patterns.
+Do NOT use different names in update than you used in create.
 '''
 
 
