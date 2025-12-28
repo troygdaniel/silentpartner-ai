@@ -1,6 +1,10 @@
-# SilentPartner Architecture
+# QuietDesk Architecture
 
-This document describes the technical architecture of SilentPartner to help guide ongoing development.
+This document describes the technical architecture of QuietDesk to help guide ongoing development.
+
+**For AI Developers (Claude Code, Codex, etc.):** This is your technical reference. See `ProductRoadmap.md` for what to build next.
+
+---
 
 ## System Overview
 
@@ -30,57 +34,72 @@ This document describes the technical architecture of SilentPartner to help guid
 │                      External APIs                               │
 │  ┌─────────────────────┐      ┌─────────────────────────────┐   │
 │  │     OpenAI API      │      │      Anthropic API          │   │
-│  │  (GPT-4, GPT-3.5)   │      │  (Claude 3 Opus/Sonnet)     │   │
+│  │  (GPT-4, GPT-4o)    │      │  (Claude 3.5/4)             │   │
 │  └─────────────────────┘      └─────────────────────────────┘   │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
+---
+
 ## Database Schema
+
+### Core QuietDesk Models
 
 ```
 ┌─────────────────┐       ┌─────────────────┐       ┌─────────────────┐
-│     users       │       │   employees     │       │    projects     │
+│     users       │       │  team_members   │       │    projects     │
 ├─────────────────┤       ├─────────────────┤       ├─────────────────┤
 │ id (PK, UUID)   │──┐    │ id (PK, UUID)   │       │ id (PK, UUID)   │
 │ email           │  │    │ owner_id (FK)───│───────│ owner_id (FK)───│──┐
-│ name            │  │    │ name            │       │ name            │  │
-│ google_id       │  │    │ role            │       │ description     │  │
-│ is_active       │  │    │ instructions    │       │ status          │  │
-│ openai_api_key  │  │    │ model           │       │ created_at      │  │
-│ anthropic_key   │  │    │ is_default      │       │ updated_at      │  │
-│ created_at      │  │    │ created_at      │       └────────┬────────┘  │
-│ updated_at      │  │    │ updated_at      │                │           │
-└─────────────────┘  │    └────────┬────────┘                │           │
-                     │             │                          │           │
-                     │             │                          │           │
-┌─────────────────┐  │    ┌────────▼────────┐       ┌────────▼────────┐  │
-│    memories     │  │    │    messages     │       │  project_files  │  │
+│ name            │  │    │ role            │       │ name            │  │
+│ google_id       │  │    │ name            │       │ description     │  │
+│ openai_api_key  │  │    │ title           │       │ status          │  │
+│ anthropic_key   │  │    │ instructions    │       │ created_at      │  │
+│ created_at      │  │    │ model           │       │ updated_at      │  │
+└─────────────────┘  │    │ is_lead         │       └────────┬────────┘  │
+                     │    └─────────────────┘                │           │
+                     │                                        │           │
+┌─────────────────┐  │    ┌─────────────────┐       ┌────────▼────────┐  │
+│    requests     │  │    │  deliverables   │       │ request_messages│  │
 ├─────────────────┤  │    ├─────────────────┤       ├─────────────────┤  │
 │ id (PK, UUID)   │  │    │ id (PK, UUID)   │       │ id (PK, UUID)   │  │
-│ owner_id (FK)───│──┘    │ owner_id (FK)───│───────│ project_id (FK) │──┘
-│ employee_id(FK) │───────│ project_id (FK) │       │ owner_id (FK)   │
-│ project_id (FK) │───────│ employee_id(FK) │       │ filename        │
-│ content         │       │ role            │       │ content         │
-│ created_at      │       │ content         │       │ size            │
-│ updated_at      │       │ created_at      │       │ created_at      │
-└─────────────────┘       └─────────────────┘       └─────────────────┘
+│ owner_id (FK)───│──┘    │ request_id (FK) │───────│ request_id (FK) │  │
+│ project_id (FK) │───────│ owner_id (FK)   │       │ owner_id (FK)   │  │
+│ title           │       │ title           │       │ role            │  │
+│ description     │       │ content         │       │ sender_name     │  │
+│ request_type    │       │ deliverable_type│       │ content         │  │
+│ status          │       │ version         │       │ is_internal     │  │
+│ team_involved   │       │ is_draft        │       │ created_at      │  │
+│ product_url     │       │ google_sheet_url│       └─────────────────┘  │
+│ created_at      │       │ created_at      │                            │
+│ started_at      │       └─────────────────┘                            │
+│ completed_at    │                                                      │
+└─────────────────┘                                                      │
 ```
 
 ### Key Relationships
 
-- **User → Employees**: One-to-many. Each user owns multiple AI employees.
-- **User → Projects**: One-to-many. Each user owns multiple projects.
-- **User → Memories**: One-to-many. Memories can be shared, employee-specific, or project-specific.
-- **Project → Messages**: One-to-many. Project channels contain messages.
-- **Employee → Messages**: One-to-many (optional). DMs and @mentions link to employees.
-- **Project → ProjectFiles**: One-to-many. Files uploaded to projects.
+- **User → TeamMembers**: One-to-many. Pre-instantiated consulting team per user.
+- **User → Projects**: One-to-many. Each "product" the user is building.
+- **Project → Requests**: One-to-many. Conversation sessions within a product.
+- **Request → RequestMessages**: One-to-many. Messages in the conversation thread.
+- **Request → Deliverables**: One-to-many. Documents produced from the conversation.
 
-### Memory Scoping
+### The Consulting Team (Default)
 
-Memories have a hierarchical scope:
-1. **Shared** (`employee_id=NULL, project_id=NULL`): Available to all employees in all contexts
-2. **Employee-specific** (`employee_id=X, project_id=NULL`): Only for a specific employee
-3. **Project-specific** (`project_id=X`): Only within a specific project
+Created automatically on user signup:
+
+| Name | Role | Title | Purpose |
+|------|------|-------|---------|
+| Quincy | lead | Project Lead | Orchestrates team, user-facing, routes requests |
+| Jordan | product_manager | Product Manager | Roadmaps, PRDs, prioritization |
+| Sam | ux_expert | UX Designer | User experience, design feedback |
+| Riley | technical_advisor | Technical Advisor | Architecture, feasibility |
+| Morgan | research_analyst | Research Analyst | Market research, competitors |
+| Taylor | qa_engineer | QA Engineer | Testing, quality assurance |
+| Casey | marketing | Marketing Consultant | Positioning, messaging |
+
+---
 
 ## Backend Architecture
 
@@ -93,239 +112,180 @@ backend/
 ├── models.py               # SQLAlchemy ORM models
 ├── auth.py                 # JWT token verification, require_auth dependency
 ├── crypto.py               # Fernet encryption for API keys
-├── routes_auth.py          # Google OAuth flow, token generation
-├── routes_employees.py     # Employee CRUD operations
-├── routes_projects.py      # Project CRUD operations
+├── routes_auth.py          # Google OAuth + team creation on signup
+├── routes_dashboard.py     # Dashboard, requests, deliverables
+├── routes_processing.py    # Background team deliberation engine
 ├── routes_chat.py          # Chat streaming (SSE) with OpenAI/Anthropic
-├── routes_memory.py        # Memory CRUD + context injection helpers
-├── routes_messages.py      # Persistent chat history
-├── routes_files.py         # Session-based file uploads (DMs)
-├── routes_project_files.py # Persistent project file storage
 ├── routes_settings.py      # API key management
+├── routes_employees.py     # (Legacy) Employee CRUD
+├── routes_projects.py      # Project CRUD
+├── routes_messages.py      # Persistent chat history
+├── routes_memory.py        # Memory system
+├── routes_files.py         # File uploads
 └── requirements.txt
 ```
 
-### Request Flow
+### Request Flow (QuietDesk Mode)
 
 ```
-1. Request arrives at FastAPI
+1. User creates product (name only)
          │
          ▼
-2. Static file? → Serve from /static
-         │ No
-         ▼
-3. API route matched
+2. Quincy auto-starts conversation
          │
          ▼
-4. require_auth dependency validates JWT
+3. User sends message in conversation
          │
          ▼
-5. get_db dependency provides async session
+4. Processing engine:
+   a. Quincy analyzes message
+   b. Routes to relevant team members
+   c. Team members respond (visible in thread)
+   d. Quincy offers deliverables when ready
          │
          ▼
-6. Route handler processes request
+5. User accepts deliverable offer
          │
          ▼
-7. For chat: Stream SSE response from AI provider
+6. Team generates deliverable
+         │
+         ▼
+7. Deliverable appears in conversation + deliverables section
 ```
 
-### Authentication Flow
+### Conversation Processing
 
 ```
-1. User clicks "Sign in with Google"
-         │
-         ▼
-2. Redirect to Google OAuth
-         │
-         ▼
-3. Google redirects back with code
-         │
-         ▼
-4. Backend exchanges code for tokens
-         │
-         ▼
-5. Get user info from Google
-         │
-         ▼
-6. Create/update user in database
-         │
-         ▼
-7. Generate JWT with user ID
-         │
-         ▼
-8. Redirect to frontend with JWT in URL
-         │
-         ▼
-9. Frontend stores JWT in localStorage
+User Message
+    │
+    ▼
+┌─────────────────────────────────────────────────┐
+│  Quincy (Orchestrator)                          │
+│  - Understands user intent                      │
+│  - Decides who to involve                       │
+│  - Loops in team members                        │
+└───────────────────┬─────────────────────────────┘
+                    │
+    ┌───────────────┼───────────────┐
+    ▼               ▼               ▼
+┌────────┐    ┌────────┐      ┌────────┐
+│ Jordan │    │  Sam   │      │ Riley  │
+│  (PM)  │    │  (UX)  │      │ (Dev)  │
+└───┬────┘    └───┬────┘      └───┬────┘
+    │             │               │
+    └─────────────┼───────────────┘
+                  ▼
+         Team responses appear
+         in conversation thread
+                  │
+                  ▼
+         Quincy offers deliverable
+         when enough context
 ```
 
-### Chat Streaming
-
-```
-1. Frontend sends POST /api/chat
-         │
-         ▼
-2. Validate employee ownership
-         │
-         ▼
-3. Decrypt user's API key
-         │
-         ▼
-4. Build system prompt:
-   - Employee instructions
-   - Relevant memories (shared + role + project)
-   - Uploaded files content
-         │
-         ▼
-5. Determine provider (OpenAI vs Anthropic)
-         │
-         ▼
-6. Stream response via SSE
-         │
-         ▼
-7. Frontend renders chunks in real-time
-         │
-         ▼
-8. Save complete message to database
-```
+---
 
 ## Frontend Architecture
 
 ### Component Structure
 
-The frontend is a single-file React application (`App.jsx`) with the following logical sections:
-
 ```
-App.jsx
-├── State Management (useState hooks)
-│   ├── Auth state (user, loading)
-│   ├── Data state (projects, employees, memories, apiKeys)
-│   ├── Navigation state (activeChannel, showSettings)
-│   ├── Chat state (messages, chatInput, isStreaming)
-│   └── Modal state (showProjectModal, editingEmployee, etc.)
-│
-├── Data Fetching (useEffect + fetch functions)
-│   ├── fetchProjects()
-│   ├── fetchEmployees()
-│   ├── fetchMessages()
-│   ├── fetchMemories()
-│   └── fetchApiKeys()
-│
-├── Event Handlers
-│   ├── CRUD operations (handleSaveProject, handleDeleteEmployee, etc.)
-│   ├── Chat (sendMessage with SSE parsing)
-│   ├── File upload (handleFileUpload)
-│   └── API keys (saveApiKeys, removeApiKey)
-│
-└── Render
-    ├── Login screen (if !user)
-    ├── Sidebar (projects, DMs, user footer)
-    ├── Main content area
-    │   ├── Settings view
-    │   ├── Chat view (messages + input)
-    │   └── Dashboard/home view
-    └── Modals (project, employee)
+frontend/src/
+├── App.jsx           # Main app, auth, classic mode
+├── Dashboard.jsx     # QuietDesk dashboard (products, conversation)
+└── index.jsx         # Entry point
 ```
 
-### Navigation Model
+### Dashboard State
+
+```javascript
+// Key state in Dashboard.jsx
+const [products, setProducts] = useState([])           // User's products
+const [activeProduct, setActiveProduct] = useState(null) // Currently viewing
+const [conversation, setConversation] = useState([])   // Messages in thread
+const [deliverables, setDeliverables] = useState([])   // Product deliverables
+const [teamTyping, setTeamTyping] = useState({})       // Who's typing
+```
+
+### View States
 
 ```
-activeChannel = null  → Dashboard (home view)
-activeChannel = { type: 'project', id, name }  → Project channel
-activeChannel = { type: 'dm', id, name }  → Direct message
-showSettings = true  → Settings panel
+products.length === 0      → First visit: "What are you working on?"
+products.length > 0        → Product grid
+activeProduct !== null     → Conversation view
+viewingDeliverable !== null → Full-page deliverable viewer
 ```
 
-### State Flow
-
-```
-User Action → Update State → Re-render → API Call → Update State
-     │                                        │
-     └────────────────────────────────────────┘
-                  (optimistic updates)
-```
+---
 
 ## API Endpoints
 
-### Authentication
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/auth/status` | Check if OAuth is configured |
-| GET | `/api/auth/google` | Initiate Google OAuth flow |
-| GET | `/api/auth/callback` | OAuth callback handler |
-| GET | `/api/auth/me` | Get current user info |
+### QuietDesk Dashboard
 
-### Employees
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | `/api/employees` | List all employees |
-| POST | `/api/employees` | Create employee |
-| GET | `/api/employees/{id}` | Get employee |
-| PUT | `/api/employees/{id}` | Update employee |
-| DELETE | `/api/employees/{id}` | Delete employee |
+| GET | `/api/dashboard/` | Dashboard overview (products, stats) |
+| GET | `/api/dashboard/team` | Get user's consulting team |
 
-### Projects
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/projects` | List all projects |
-| POST | `/api/projects` | Create project |
-| GET | `/api/projects/{id}` | Get project |
-| PUT | `/api/projects/{id}` | Update project |
-| DELETE | `/api/projects/{id}` | Delete project (cascades) |
+### Products
 
-### Chat
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| POST | `/api/chat` | Stream chat response (SSE) |
+| POST | `/api/products/` | Create product (just name) |
+| GET | `/api/products/` | List all products |
+| GET | `/api/products/{id}` | Product detail with deliverables |
+| PUT | `/api/products/{id}` | Update product (name, description) |
+| DELETE | `/api/products/{id}` | Delete product |
 
-### Messages
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/messages/project/{id}` | Get project messages |
-| GET | `/api/messages/dm/{id}` | Get DM messages |
-| POST | `/api/messages` | Save a message |
-| DELETE | `/api/messages/project/{id}` | Clear project messages |
-| DELETE | `/api/messages/dm/{id}` | Clear DM messages |
+### Conversation
 
-### Memories
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | `/api/memories` | List memories (filterable) |
-| GET | `/api/memories/all` | List all memories |
-| POST | `/api/memories` | Create memory |
-| PUT | `/api/memories/{id}` | Update memory |
-| DELETE | `/api/memories/{id}` | Delete memory |
+| GET | `/api/products/{id}/conversation` | Get conversation messages |
+| POST | `/api/products/{id}/message` | Send message (triggers team) |
+| GET | `/api/products/{id}/typing` | SSE stream for typing indicators |
 
-### Files
+### Deliverables
+
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| POST | `/api/files/upload/{employee_id}` | Upload file (DM session) |
-| DELETE | `/api/files/{employee_id}/{file_id}` | Delete file |
-| POST | `/api/project-files/upload/{project_id}` | Upload project file |
-| GET | `/api/project-files/{project_id}` | List project files |
-| DELETE | `/api/project-files/{project_id}/{file_id}` | Delete project file |
+| GET | `/api/deliverables/{id}` | Full deliverable content |
+| POST | `/api/deliverables/{id}/comment` | Add inline comment |
+| POST | `/api/deliverables/{id}/update` | Request team to update |
+
+### Processing
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/processing/process` | Trigger team processing |
+| GET | `/api/processing/status/{request_id}` | Get processing status |
+| GET | `/api/processing/internal-messages/{id}` | Team deliberation messages |
 
 ### Settings
+
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | GET | `/api/settings/api-keys` | Check which keys are set |
 | PUT | `/api/settings/api-keys` | Update API keys |
 
-## Security Considerations
+---
+
+## Security
 
 ### API Key Storage
-- User API keys are encrypted using Fernet symmetric encryption
-- Encryption key is stored in `ENCRYPTION_KEY` environment variable
-- Keys are decrypted only when making API calls
+- User API keys encrypted with Fernet
+- Decrypted only when making AI API calls
 
 ### Authentication
-- JWT tokens expire after 7 days
-- Tokens are signed with `JWT_SECRET` environment variable
-- All API routes (except auth) require valid JWT
+- JWT tokens (7-day expiry)
+- All API routes require valid JWT
+- Google OAuth for login
 
 ### Data Isolation
-- All queries filter by `owner_id` to ensure users only see their own data
-- Foreign key constraints prevent orphaned records
+- All queries filter by `owner_id`
+- Users only see their own data
+
+---
 
 ## Deployment
 
@@ -340,50 +300,72 @@ Procfile:
 web: cd backend && uvicorn main:app --host 0.0.0.0 --port $PORT
 
 Add-ons:
-- Heroku Postgres (Essential-0 or higher)
+- Heroku Postgres
 ```
 
 ### Environment Variables
 
 | Variable | Description |
 |----------|-------------|
-| `DATABASE_URL` | PostgreSQL connection string (auto-set by Heroku) |
+| `DATABASE_URL` | PostgreSQL connection string |
 | `JWT_SECRET` | Secret key for JWT signing |
 | `GOOGLE_CLIENT_ID` | Google OAuth client ID |
 | `GOOGLE_CLIENT_SECRET` | Google OAuth client secret |
 | `ENCRYPTION_KEY` | 32-byte key for Fernet encryption |
 
-### Build Process
+### Deploy Commands
 
+```bash
+# Deploy to Heroku
+git add -A && git commit -m "description" && git push heroku main
+
+# Check logs
+heroku logs --tail --app silentpartner
+
+# Run database commands
+heroku run "python -c '...'" --app silentpartner
 ```
-1. npm install (root package.json)
-2. npm run build (triggers frontend build)
-3. pip install -r backend/requirements.txt
-4. uvicorn starts, serves static files + API
+
+---
+
+## Development
+
+### Local Setup
+
+```bash
+# Backend
+cd backend
+pip install -r requirements.txt
+uvicorn main:app --reload
+
+# Frontend (separate terminal)
+cd frontend
+npm install
+npm run dev
 ```
 
-## Future Considerations
+### Testing Changes
 
-### Scalability
-- Consider Redis for session storage if scaling horizontally
-- Add connection pooling for database
-- Implement rate limiting for API endpoints
+1. Make code changes
+2. Test locally with `uvicorn main:app --reload`
+3. Verify in browser at `http://localhost:8000`
+4. Commit and push to Heroku
 
-### Features
-- Real-time updates via WebSockets
-- Team/organization support (multi-user workspaces)
-- More AI providers (Google, Cohere, etc.)
-- File type support beyond text (images, PDFs)
-- Export/import functionality
+### Code Style
 
-### Performance
-- Add database indexes as query patterns emerge
-- Implement pagination for messages and memories
-- Cache frequently accessed data
-- Consider splitting frontend into multiple components
+- Python: Standard PEP 8
+- JavaScript: React functional components, hooks
+- Keep components focused and small
+- Add comments for complex logic
 
-### Monitoring
-- Add structured logging
-- Implement error tracking (Sentry)
-- Add performance monitoring
-- Create admin dashboard for usage metrics
+---
+
+## Legacy Mode (Classic)
+
+The original "SilentPartner" mode is still available:
+- Create custom AI employees
+- Project channels with @mentions
+- Direct messages
+- Custom instructions per employee
+
+Access via "Back to Classic" button in Dashboard.

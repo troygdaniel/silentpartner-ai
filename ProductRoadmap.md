@@ -1,40 +1,46 @@
 # QuietDesk Product Roadmap
 
-This roadmap outlines planned features and improvements for QuietDesk - your virtual consulting team that works in the background.
+## For AI Developers (Claude Code, Codex)
+
+**How to use this file:**
+1. Find an unclaimed task in the current phase
+2. Change `[ ]` to `[IN PROGRESS - your name]`
+3. Commit this change before starting work
+4. When done, change to `[x]` and commit with your code changes
+5. If blocked, add `[BLOCKED - reason]` and move on
+
+**Example:**
+```
+- [ ] Build product creation endpoint              ← Available
+- [IN PROGRESS - Claude] Build conversation API   ← Being worked on
+- [x] Create database models                       ← Done
+- [BLOCKED - needs clarification] Add @mentions    ← Stuck
+```
+
+---
 
 ## Vision
 
 QuietDesk feels like sitting in a room with a team who's actively working on your product. You can watch, interject, and they produce tangible deliverables. It's not a ticketing system. It's not a chatbot. It's a **working session**.
 
 ### Core Principles
-- **Product-first**: Everything revolves around the products/projects you're building
+- **Product-first**: Everything revolves around the products you're building
 - **Conversation-driven**: Natural dialogue, not forms and tickets
-- **Living deliverables**: Documents evolve through feedback, not static outputs
+- **Living deliverables**: Documents evolve through feedback
 - **Visible teamwork**: Watch the team discuss and collaborate
 - **Low friction**: Just a name to start, details emerge through conversation
 
 ---
 
-## Development Notes
+## Completed Work
 
-**For Claude Code / Codex developers:**
-- This project uses Python (FastAPI) backend and React frontend
-- All code is in `/backend` and `/frontend/src`
-- Deploy via `git push heroku main`
-- Test locally with `uvicorn main:app --reload` in backend
-- See `Architecture.md` for technical details
-
----
-
-## Current State (Completed)
-
-### Phase QD-1: Foundation (Complete)
+### Phase QD-1: Foundation ✓
 - [x] Data models: Request, Deliverable, TeamMember, RequestMessage
 - [x] Pre-instantiated consulting team on signup
 - [x] Dashboard API endpoints
-- [x] Basic dashboard UI with request/deliverable views
+- [x] Basic dashboard UI
 
-### Phase QD-2: Background Processing (Complete)
+### Phase QD-2: Background Processing ✓
 - [x] Quincy orchestration (routes to team members)
 - [x] Team deliberation workflow
 - [x] Real-time progress tracking
@@ -42,190 +48,181 @@ QuietDesk feels like sitting in a room with a team who's actively working on you
 
 ---
 
-## Phase QD-3: Simplified UX (IN PROGRESS)
+## Phase QD-3: Simplified UX (CURRENT SPRINT)
 
 **Goal:** Remove friction, make it feel like a working session.
 
 ### QD-3.1 Product-First Dashboard
-- [ ] New first-visit experience: "What are you working on?" → single input
-- [ ] Product cards in grid layout (2 columns)
-- [ ] Each card shows: name, status, last activity
-- [ ] "Continue Session" or "Open" button per product
-- [ ] "+ New Product" button
-- [ ] Team displayed at bottom (informational, not clickable)
+| Task | Status | Owner | Notes |
+|------|--------|-------|-------|
+| New first-visit view: "What are you working on?" input | [ ] | | Single text input + Start button |
+| Product cards grid (2 columns) | [ ] | | Show name, status, last activity |
+| "Continue Session" / "Open" button per card | [ ] | | Navigate to conversation |
+| "+ New Product" button in header | [ ] | | For users with existing products |
+| Team displayed at bottom (read-only) | [ ] | | Names and roles, not clickable |
+| Remove old request/deliverable sections | [ ] | | Clean up legacy UI |
 
 ### QD-3.2 Conversation View
-- [ ] Navigate into a product → full conversation view
-- [ ] Team bar at top showing who's on the team
-- [ ] Deliverables section (above conversation)
-- [ ] Conversation thread (scrollable)
-- [ ] Input box at bottom with send button
-- [ ] @mention support to address specific team members
+| Task | Status | Owner | Notes |
+|------|--------|-------|-------|
+| Product conversation page layout | [ ] | | Team bar, deliverables, convo, input |
+| Team bar at top showing members | [ ] | | Horizontal list of team |
+| Deliverables section (above conversation) | [ ] | | Cards with status, open button |
+| Conversation thread (scrollable) | [ ] | | Messages from user + team |
+| Message input box + send button | [ ] | | Bottom of screen |
+| "Back to products" navigation | [ ] | | Return to dashboard |
 
 ### QD-3.3 Quincy Auto-Start
-- [ ] When product created, Quincy automatically greets
-- [ ] Quincy asks about the product to gather context
-- [ ] User can take conversation anywhere they want
-- [ ] Quincy loops in team members as needed (visible in thread)
+| Task | Status | Owner | Notes |
+|------|--------|-------|-------|
+| Create conversation on product creation | [ ] | | Automatic, not user-triggered |
+| Quincy greeting message | [ ] | | "Hi! Tell me about [product name]..." |
+| Trigger team routing when user responds | [ ] | | Quincy decides who to involve |
+| Show team member responses in thread | [ ] | | Visible to user, not hidden |
 
 ### QD-3.4 Typing Indicators
-- [ ] Show "Jordan is typing..." when team member is responding
-- [ ] Per-member typing indicators
-- [ ] "Team is working..." state when multiple members active
+| Task | Status | Owner | Notes |
+|------|--------|-------|-------|
+| "Jordan is typing..." indicator | [ ] | | Per-team-member |
+| Typing state management | [ ] | | Track who's currently generating |
+| Clear typing when response arrives | [ ] | | Clean state transition |
+
+### Backend Work for QD-3
+| Task | Status | Owner | Notes |
+|------|--------|-------|-------|
+| `POST /api/products/` - create product | [ ] | | Just name, auto-create conversation |
+| `GET /api/products/` - list products | [ ] | | With status, last activity |
+| `GET /api/products/{id}` - product detail | [ ] | | With deliverables list |
+| `GET /api/products/{id}/conversation` - messages | [ ] | | All messages in thread |
+| `POST /api/products/{id}/message` - send message | [ ] | | Trigger team processing |
+| Quincy greeting on product creation | [ ] | | First message in conversation |
+| Modify processing to show team responses | [ ] | | Not just internal, visible |
 
 ---
 
-## Phase QD-4: Living Deliverables
+## Phase QD-4: Living Deliverables (NEXT)
 
 **Goal:** Deliverables that evolve through conversation and feedback.
 
 ### QD-4.1 Deliverable Offers
-- [ ] Quincy offers to create deliverables when enough context ("I can draft a Product Brief. Should I?")
-- [ ] User clicks "Yes, create it" or "Not yet"
-- [ ] User can also request deliverables anytime ("Create a roadmap")
-- [ ] Deliverable appears inline in conversation when created
+| Task | Status | Owner | Notes |
+|------|--------|-------|-------|
+| Quincy detects when enough context | [ ] | | AI determines readiness |
+| Offer message: "Should I create a [type]?" | [ ] | | Clickable buttons in thread |
+| "Yes, create it" triggers generation | [ ] | | User acceptance flow |
+| "Not yet" continues conversation | [ ] | | User control |
+| User can request deliverables anytime | [ ] | | "Create a roadmap" in chat |
 
-### QD-4.2 Deliverable Types
-| Context | Quincy Offers |
-|---------|---------------|
-| New product, basic description | Product Brief |
-| Discussed target users | User Personas |
-| Discussed features | Feature Roadmap |
-| Discussed competitors | Competitive Analysis |
-| Discussed pricing | Pricing Strategy |
-| Asked "how should we build this" | Technical Architecture |
-| Asked for feedback on idea | UX Audit / Review |
+### QD-4.2 Deliverable in Conversation
+| Task | Status | Owner | Notes |
+|------|--------|-------|-------|
+| Deliverable card appears in thread | [ ] | | When generated |
+| Preview snippet in card | [ ] | | First few lines |
+| "View Full" button | [ ] | | Opens full-page view |
+| "Give Feedback" button | [ ] | | Opens comment mode |
 
 ### QD-4.3 Full-Page Deliverable View
-- [ ] Click "View" on deliverable → full-page view
-- [ ] Markdown rendering with headers, lists, etc.
-- [ ] Mermaid diagram rendering (architecture, flows, timelines)
-- [ ] "Back" button to return to conversation
+| Task | Status | Owner | Notes |
+|------|--------|-------|-------|
+| Full-page deliverable viewer | [ ] | | Clean reading experience |
+| Markdown rendering | [ ] | | Headers, lists, bold, etc. |
+| Mermaid diagram rendering | [ ] | | Architecture, flows |
+| "Back" button to conversation | [ ] | | Return navigation |
 
 ### QD-4.4 Inline Commenting
-- [ ] Add comments with `>>` prefix or comment button
-- [ ] Ask questions within the document
-- [ ] Team sees comments and responds
-- [ ] Team updates deliverable based on feedback
-- [ ] Comments resolve into updated content
-- [ ] "Request Update from Team" button
-
-### QD-4.5 Deliverable Display
-- [ ] Deliverables section on product page (above conversation)
-- [ ] Show status: DRAFT, CURRENT, "2 comments"
-- [ ] Always show latest version (no version history cluttering UI)
-- [ ] "View discussion" to see related conversation
+| Task | Status | Owner | Notes |
+|------|--------|-------|-------|
+| Add comment button in viewer | [ ] | | Triggers comment mode |
+| `>>` prefix for inline comments | [ ] | | User types feedback inline |
+| Team sees and responds to comments | [ ] | | AI processes feedback |
+| "Request Update" button | [ ] | | Trigger team to revise |
+| Updated deliverable replaces old | [ ] | | Always show latest |
 
 ---
 
-## Phase QD-5: Intelligence & Context
+## Phase QD-5: Intelligence & Context (FUTURE)
 
-**Goal:** Make the team smarter.
-
-### QD-5.1 Product Context Evolution
-- [ ] AI enriches product description based on conversations
-- [ ] User can edit product description later
-- [ ] Add context over time (URLs, files, notes)
-- [ ] Team references previous deliverables in conversation
+### QD-5.1 Product Context
+- [ ] AI enriches product description from conversation
+- [ ] User can edit product description
+- [ ] Add URLs, files, notes to product
+- [ ] Team references previous deliverables
 
 ### QD-5.2 Web Browsing
-- [ ] Casey (Research) can browse the web for research requests
+- [ ] Casey can browse web for research
 - [ ] Product URL analysis
-- [ ] Competitor website browsing
+- [ ] Competitor browsing
 
 ### QD-5.3 File Attachments
-- [ ] Attach files to conversations
-- [ ] Document analysis for audits
+- [ ] Attach files to conversation
+- [ ] Document analysis
 - [ ] Image analysis for UX reviews
 
 ---
 
-## Phase QD-6: Polish
+## Phase QD-6: Polish (FUTURE)
 
-**Goal:** Refine the experience.
-
-### QD-6.1 Mermaid Diagrams
-- [ ] Architecture diagrams in Technical Architecture deliverables
+### QD-6.1 Diagrams
+- [ ] Mermaid architecture diagrams
 - [ ] User flow diagrams
-- [ ] Feature dependency charts
 - [ ] Roadmap timelines
-- [ ] Entity relationship diagrams
 
-### QD-6.2 Export Options
-- [ ] Download deliverable as Markdown
+### QD-6.2 Export
+- [ ] Download as Markdown
 - [ ] Download as PDF
-- [ ] Export to Google Docs
-- [ ] Export to Google Sheets (for roadmaps)
+- [ ] Export to Google Docs/Sheets
 
-### QD-6.3 Mobile Experience
+### QD-6.3 Mobile
 - [ ] Responsive product cards
-- [ ] Mobile-friendly conversation view
-- [ ] Touch-friendly deliverable viewing
+- [ ] Mobile conversation view
+- [ ] Touch-friendly deliverables
 
 ---
 
-## Future Considerations
+## Notes for Developers
 
-**Ideas for later evaluation:**
+### Key Files to Modify
 
-- **Voice Interface**: Voice input for conversations
-- **Custom Team Members**: Add/customize team composition
-- **White-Label**: Custom branding
-- **Slack Integration**: Submit requests from Slack
-- **Meeting Integration**: Connect to Zoom/Meet for context
-- **Real-time Streaming**: Stream team responses as they generate
-- **Version History**: See how deliverables evolved (low priority)
+**Frontend:**
+- `frontend/src/Dashboard.jsx` - Main dashboard component (rewrite for new UX)
+- `frontend/src/App.jsx` - Keep auth, settings, classic mode toggle
 
----
+**Backend:**
+- `backend/routes_dashboard.py` - Existing endpoints to extend
+- `backend/routes_processing.py` - Modify for visible team responses
+- `backend/models.py` - May need tweaks
 
-## Architecture
+### Architecture Reference
+See `Architecture.md` for:
+- Database schema
+- API endpoint patterns
+- Processing flow diagrams
+- Deployment instructions
 
-### Key Models
+### Testing
+1. Test locally: `cd backend && uvicorn main:app --reload`
+2. Frontend dev: `cd frontend && npm run dev`
+3. Deploy: `git push heroku main`
+4. Check logs: `heroku logs --tail --app silentpartner`
+
+### Commit Style
 ```
-Project (renamed conceptually to "Product")
-  - owner_id, name, description
-  - Enriched over time through conversations
+Short description of change
 
-TeamMember - Pre-instantiated consulting team
-  - Quincy (Lead), Jordan (PM), Sam (UX), Riley (Dev)
-  - Morgan (Research), Taylor (QA), Casey (Tech)
+- Detail 1
+- Detail 2
 
-Request - Now represents a "conversation session" or topic
-  - project_id (links to product)
-  - Messages flow through this
+🤖 Generated with [Claude Code](https://claude.com/claude-code)
 
-Deliverable - Living documents
-  - request_id, title, content
-  - Updated through conversation feedback
-
-RequestMessage - Conversation messages
-  - From user or team members
-  - is_internal for team deliberation (visible to user)
-```
-
-### API Endpoints (Existing + New)
-```
-GET  /api/dashboard/           - Dashboard overview
-POST /api/products/            - Create new product (simple name input)
-GET  /api/products/:id         - Product detail with deliverables
-GET  /api/products/:id/conversation - Conversation history
-POST /api/products/:id/message - Send message in conversation
-GET  /api/deliverables/:id     - Full deliverable content
-POST /api/deliverables/:id/comment - Add inline comment
+Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>
 ```
 
 ---
 
-## How to Contribute
+## Questions / Blockers
 
-When implementing features:
-1. Pick an item from the current phase (QD-3)
-2. Reference this roadmap for UX decisions
-3. Reference Architecture.md for technical guidance
-4. Test locally before deploying
-5. Update this roadmap to mark progress
+Add any questions or blockers here for the human to address:
 
-**Priority:**
-- Focus on QD-3 (Simplified UX) - this is the current sprint
-- Keep changes minimal and focused
-- Test the happy path thoroughly before edge cases
+| Question | Asked By | Status | Answer |
+|----------|----------|--------|--------|
+| (none yet) | | | |
